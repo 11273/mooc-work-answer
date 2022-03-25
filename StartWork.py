@@ -20,12 +20,19 @@ password2 = ""  # 密码
 
 # 账号1(大号)刷课
 is_look_video = True
-# 自动交 作业 考试 测验
+
+# 自动提交 作业 考试 测验
 is_auto_submit = False
+
+# 强制自动提交 作业 考试 测验(部分无法自动提交, 开启可强制提交)
+is_auto_submit_enforce = False
+
 # 做作业
 is_work_exam_type0 = False
+
 # 做测验
 is_work_exam_type1 = False
+
 # 考试
 is_work_exam_type2 = False
 
@@ -145,6 +152,6 @@ if __name__ == '__main__':
                             print('[大号] 结果 %s \t当前作业 %s \t题目 %s' % (
                                 'success' if answer['code'] == 1 else 'fail', ss['Title'],
                                 i['TitleText'].encode("gbk", 'ignore').decode("gbk", "ignore")))
-                if my_count == daan_count:
+                if is_auto_submit_enforce or my_count == daan_count:
                     save = mooc_work.workExamSave(work_exam_preview['uniqueId'], ss['Id'], work_exam_type)
                     print(save)
