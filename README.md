@@ -1,5 +1,9 @@
 # mooc-work-answer
 
+[![stars](https://img.shields.io/github/stars/11273/mooc-work-answer)](https://github.com/11273/mooc-work-answer)
+[![forks](https://img.shields.io/github/forks/11273/mooc-work-answer)](https://github.com/11273/mooc-work-answer)
+[![issues](https://img.shields.io/github/issues/11273/mooc-work-answer?style=plastic)](https://github.com/11273/mooc-work-answer/issues)
+
 + __智慧执教 【考试+测验+作业+刷课】__
 
 + __仅适用于: <https://mooc.icve.com.cn/>__
@@ -45,7 +49,8 @@
 
 ## BUG 提交
 
-+ 请提交于 [![Email](http://rescdn.qqmail.com/zh_CN/htmledition/images/function/qm_open/ico_mailme_11.png "QQ Email")](http://mail.qq.com/cgi-bin/qm_share?t=qm_mailme&email=KBkbHhsQEBgZHxpoWVkGS0dF) 请详细提供 __错误信息__ 以及错误出现的 __代码行__
++ 请详细提供 __错误信息__ 以及错误出现的 __代码行__
++ [![Email](http://rescdn.qqmail.com/zh_CN/htmledition/images/function/qm_open/ico_mailme_11.png "QQ Email")](http://mail.qq.com/cgi-bin/qm_share?t=qm_mailme&email=KBkbHhsQEBgZHxpoWVkGS0dF)
 
 ## 免责声明
 
