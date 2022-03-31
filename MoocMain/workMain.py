@@ -20,8 +20,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = 'https://mooc.icve.com.cn'
 
-# 登录
-LOGIN_SYSTEM_URL = BASE_URL + '/portal/LoginMooc/loginSystem'
 
 # 获取我加入的所有课程
 GET_MY_COURSE_URL = BASE_URL + '/portal/Course/getMyCourse'
@@ -57,37 +55,6 @@ GET_ALL_COURSE_CLASS_URL = BASE_URL + '/portal/Course/getAllCourseClass'
 ADD_MY_MOOC_COURSE = BASE_URL + '/study/Learn/addMyMoocCourse'
 
 cookies = None
-
-
-def login(name, password):  # 0.登录
-    """
-    登录
-    :param name: 用户名
-    :param password: 密码
-    :return: cookies
-    """
-    global cookies
-    print('正在登录账号: ', name)
-    # 验证码https://mooc.icve.com.cn/portal/LoginMooc/getVerifyCode?ts=1608968080542
-    code_url = "https://mooc.icve.com.cn/portal/LoginMooc/getVerifyCode?ts={}".format(int(round(time.time() * 1000)))
-    code_result = requests.post(url=code_url, cookies=cookies)
-    with open("../VerifyCode.jpg", "wb", ) as f:
-        f.write(code_result.content)
-    # 验证码的cookies
-    Image.open("../VerifyCode.jpg").show()
-    data = {
-        'userName': name,
-        'password': password,
-        'verifycode': input("请输入验证码：")
-    }
-    result = requests.post(url=LOGIN_SYSTEM_URL, data=data, cookies=code_result.cookies)
-    json_result = json.loads(result.text)
-    if json_result['code'] == 1 and json_result['msg'] == "登录成功":
-        cookies = result.cookies
-        return result.cookies
-    else:
-        print(json_result['msg'])
-        exit(0)
 
 
 def getMyCourse():  # 1 我的课程列表

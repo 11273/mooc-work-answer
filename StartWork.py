@@ -7,6 +7,7 @@
 # @Software: PyCharm
 import json
 
+import MoocMain.initMooc as mooc_init
 import MoocMain.lookVideo as mook_video
 import MoocMain.workMain as mooc_work
 
@@ -39,6 +40,14 @@ is_work_exam_type2 = False
 
 # ****************************************** 结束 ******************************************
 
+def save_cookies():  # 登录
+    # 两个账号的 Cookies
+    return {
+        'username1cookie': mooc_init.login(username1, password1),
+        'username2cookie': mooc_init.login(username2, password2)
+    }
+
+
 def start_look_video(cookies):  # 刷课
     mook_video.start(cookies)
 
@@ -56,15 +65,10 @@ def start_work_exam_type2(cookies):  # 考试
 
 
 if __name__ == '__main__':
-    # 两个账号的 Cookies
-    save_cookies = {}
     work_exam_type_map = {0: '作业', 1: '测验', 2: '考试'}
 
-    save_cookies['username1cookie'] = mooc_work.login(username1, password1)
-    save_cookies['username2cookie'] = mooc_work.login(username2, password2)
-
     if is_look_video:
-        start_look_video(save_cookies['username1cookie'])
+        start_look_video(save_cookies()['username1cookie'])
     # if is_work_exam_type0:
     #     start_work_exam_type0(save_cookies['username1cookie'])
     # if is_work_exam_type1:
@@ -73,7 +77,7 @@ if __name__ == '__main__':
     #     start_work_exam_type2(save_cookies['username1cookie'])
 
     # 0.获取小号的所有课程
-    mooc_work.cookies = save_cookies['username2cookie']
+    mooc_work.cookies = save_cookies()['username2cookie']
     username2course = mooc_work.getMyCourse()['list']
     print('[小号] 获取所有课程: %s' % username2course)
     # 1.退出小号的所有课程
@@ -82,19 +86,19 @@ if __name__ == '__main__':
     #     print('[小号] 退出课程 \t结果: %s \t\t退出课程: %s' % (work_withdraw_course['msg'], u2course_item['courseName']))
 
     # 2.获取大号的所有课程
-    mooc_work.cookies = save_cookies['username1cookie']
+    mooc_work.cookies = save_cookies()['username1cookie']
     username1course = mooc_work.getMyCourse()['list']
     print('[大号] 获取所有课程: %s' % username1course)
 
     # 3.添加大号课程给小号
-    mooc_work.cookies = save_cookies['username2cookie']
+    mooc_work.cookies = save_cookies()['username2cookie']
     for u1course_item in username1course:
         work_add_my_mooc_course = mooc_work.addMyMoocCourse(u1course_item['courseOpenId'])
         print(
             '[小号] 添加课程 \t结果: %s \t添加课程: %s' % (work_add_my_mooc_course.get('msg', 'Fail'), u1course_item['courseName']))
 
     # 4.小号做作业，考试，测验
-    mooc_work.cookies = save_cookies['username2cookie']
+    mooc_work.cookies = save_cookies()['username2cookie']
     username2course = mooc_work.getMyCourse()['list']
     print('[小号] 生成题库 1.获取所有课程: %s' % username2course)
 
@@ -124,7 +128,7 @@ if __name__ == '__main__':
                 print('[小号] 生成题库 3.获取成功：\t{%s} \t%s' % (work_exam_type_map[work_exam_type], work_exam['Title']))
     mooc_work.csvUtil('题库', work_exam_history_list)
     # 5.大号开始答题
-    mooc_work.cookies = save_cookies['username1cookie']
+    mooc_work.cookies = save_cookies()['username1cookie']
     to_dict = mooc_work.csv_to_dict('题库.csv')
     to_dict = json.loads(to_dict)
     work_exam_type = 0
