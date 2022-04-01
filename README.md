@@ -27,7 +27,7 @@
 + 运行所需 pip 包请自行切换到本项目根目录使用以下命令进行安装
 
   ```pip
-   pip install -r requriements.txt
+   pip install -r requirements.txt
   ```
 
 1. 需要两个账号
