@@ -37,16 +37,21 @@ is_work_exam_type1 = False
 # 考试
 is_work_exam_type2 = False
 
-
 # ****************************************** 结束 ******************************************
 
 
 def save_cookies():  # 登录
-    # 两个账号的 Cookies
-    return {
-        'username1cookie': mooc_init.login(username1, password1),
-        'username2cookie': mooc_init.login(username2, password2)
-    }
+    ck = {}
+    if username1 and password1:
+        ck['username1cookie'] = mooc_init.login(username1, password1)
+        if username2 and password2:
+            ck['username2cookie'] = mooc_init.login(username2, password2)
+        else:
+            print(">>> 未填写账号2信息，仅刷课不答题!")
+    else:
+        print("请填写账号1 账号以及密码!!!")
+        exit(0)
+    return ck
 
 
 def start_look_video(cookies):  # 刷课
@@ -72,12 +77,16 @@ if __name__ == '__main__':
 
     if is_look_video:
         start_look_video(user_cookies['username1cookie'])
+        print(">>> 刷课程序运行结束")
     # if is_work_exam_type0:
     #     start_work_exam_type0(save_cookies['username1cookie'])
     # if is_work_exam_type1:
     #     start_work_exam_type1(save_cookies['username1cookie'])
     # if is_work_exam_type2:
     #     start_work_exam_type2(save_cookies['username1cookie'])
+
+    if not user_cookies.get('username2cookie', None):
+        exit(0)
 
     # 0.获取小号的所有课程
     mooc_work.cookies = user_cookies['username2cookie']
