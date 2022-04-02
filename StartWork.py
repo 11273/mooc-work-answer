@@ -28,6 +28,9 @@ is_auto_submit = False
 # 强制自动提交 作业 考试 测验(部分无法自动提交, 开启可强制提交)
 is_auto_submit_enforce = False
 
+# 小号退出所有课程
+u2_withdraw_course = False
+
 # 做作业
 is_work_exam_type0 = False
 
@@ -92,15 +95,16 @@ if __name__ == '__main__':
     mooc_work.cookies = user_cookies['username2cookie']
     username2course = mooc_work.getMyCourse()['list']
     print('[小号] 获取所有课程: %s' % username2course)
-    # 1.退出小号的所有课程
-    # for u2course_item in username2course:
-    #     work_withdraw_course = mooc_work.withdrawCourse(u2course_item['courseOpenId'], u2course_item['stuId'])
-    #     print('[小号] 退出课程 \t结果: %s \t\t退出课程: %s' % (work_withdraw_course['msg'], u2course_item['courseName']))
+    if u2_withdraw_course:
+        # 1.退出小号的所有课程
+        for u2course_item in username2course:
+            work_withdraw_course = mooc_work.withdrawCourse(u2course_item['courseOpenId'], u2course_item['stuId'])
+            print('[小号] 退出课程 \t结果: %s \t\t退出课程: %s' % (work_withdraw_course['msg'], u2course_item['courseName']))
 
     # 2.获取大号的所有课程
     mooc_work.cookies = user_cookies['username1cookie']
     username1course = mooc_work.getMyCourse()['list']
-    print('[大号] 获取所有课程: %s' % username1course)
+    print('【大号】 获取所有课程: %s' % username1course)
 
     # 3.添加大号课程给小号
     mooc_work.cookies = user_cookies['username2cookie']
@@ -127,8 +131,6 @@ if __name__ == '__main__':
                     work_exam_preview = mooc_work.workExamPreview(work_exam['Id'])
                     work_exam_save = mooc_work.workExamSave(work_exam_preview['uniqueId'], work_exam['Id'],
                                                             work_exam_type)
-                    # print('[小号] 生成题库 3.%s{新}：\t{%s} \t%s' % (
-                    # work_exam_save.get('msg', 'Fail'), work_exam_type_map[work_exam_type], work_exam['Title']))
 
                 # 作业提交成功后，获取我做的所有作业记录，取第一条里面有答案ID
                 work_exam_detail = mooc_work.workExamDetail(work_exam['Id'], u2course['courseOpenId'])
@@ -147,15 +149,14 @@ if __name__ == '__main__':
     course = mooc_work.getMyCourse()
     for work_exam_type in range(0, 3):
         for c in course['list']:
-            print('[大号] 开始答题 \t当前课程 \t【%s】' % c['courseName'])
+            print('【大号】 开始答题 \t当前课程 \t【%s】' % c['courseName'])
             exam_list = mooc_work.getWorkExamList(c['courseOpenId'], work_exam_type)
             for ss in exam_list['list']:
                 if ss['getScore'] > 90:
                     print('当前作业大于90分 不答题', ss['Title'])
                     continue
-                print('[大号] 当前 {%s} \t%s' % (work_exam_type_map[work_exam_type], ss['Title']))
+                print('【大号】 当前 {%s} \t%s' % (work_exam_type_map[work_exam_type], ss['Title']))
                 work_exam_preview = mooc_work.workExamPreview(ss['Id'])
-                # print(work_exam_preview)
                 my_count = 0
                 daan_count = 0
                 for i in json.loads(work_exam_preview['workExamData'])['questions']:
@@ -165,7 +166,7 @@ if __name__ == '__main__':
                             daan_count += 1
                             answer = mooc_work.onlineHomeworkAnswer(j['questionId'], j['Answer'], j['questionType'],
                                                                     work_exam_preview['uniqueId'])
-                            print('[大号] 结果 %s \t当前作业 %s \t题目 %s' % (
+                            print('【大号】 结果 %s \t当前作业 %s \t题目 %s' % (
                                 'success' if answer['code'] == 1 else 'fail', ss['Title'],
                                 i['TitleText'].encode("gbk", 'ignore').decode("gbk", "ignore")))
                 if is_auto_submit_enforce or my_count == daan_count:

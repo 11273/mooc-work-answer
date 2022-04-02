@@ -188,3 +188,7 @@ def csv_to_dict(filename):
 #         f_csv = csv.writer(f)
 #         f_csv.writerow(headers)
 #         f_csv.writerows(rows)
+
+def run_work_withdraw_course(course_openId):
+    work_withdraw_course = withdrawCourse(u2course_item['courseOpenId'], u2course_item['stuId'])
+    print('[小号] 退出课程 \t结果: %s \t\t退出课程: %s' % (work_withdraw_course['msg'], u2course_item['courseName']))
