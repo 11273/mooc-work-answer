@@ -78,7 +78,7 @@ def login(name, password):  # 0.登录
         result = to_url(name, password, login_fail_num)
         json_result = result.json()
         if json_result['code'] == 1 and json_result['msg'] == "登录成功":
-            print("==================== 登陆成功:【" + str(name), json_result['schoolName'],  "】 ====================")
+            print("==================== 登陆成功:【" + str(name), json_result['schoolName'],  "】 ====================\n")
             return result.cookies
         else:
             print("\t\t--->", json_result['msg'])

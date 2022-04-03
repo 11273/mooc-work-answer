@@ -1,3 +1,2 @@
-ddddocr==1.4.3
 Pillow==9.0.1
 requests==2.25.1

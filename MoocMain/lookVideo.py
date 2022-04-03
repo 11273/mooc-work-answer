@@ -23,7 +23,7 @@ def getCourseOpenList(cookies):
     :param cookies: cookies
     :return:
     """
-    url = "https://mooc.icve.com.cn/portal/Course/getMyCourse?isFinished=0"
+    url = "https://mooc.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
     result = json.loads(requests.post(url=url, headers=headers, cookies=cookies).text)
     return result['list']
 
