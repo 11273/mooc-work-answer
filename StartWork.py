@@ -37,7 +37,7 @@ is_work_exam_type2 = True
 is_work_score = 90
 
 # 需要跳过的课程，填写方式例： ['大学语文', '高等数学']
-is_continue_work = ['奥尔夫音乐教育', '学生体质健康']
+is_continue_work = []
 
 # ****************************************** 结束 ******************************************
 
@@ -64,12 +64,6 @@ if __name__ == '__main__':
     if is_look_video:
         mook_video.start(user_cookies['ck1'])
         print(">>> 刷课程序运行结束")
-    # if is_work_exam_type0:
-    #     start_work_exam_type0(save_cookies['ck1'])
-    # if is_work_exam_type1:
-    #     start_work_exam_type1(save_cookies['ck1'])
-    # if is_work_exam_type2:
-    #     start_work_exam_type2(save_cookies['ck1'])
 
     if not user_cookies.get('ck2', None):
         exit(0)
