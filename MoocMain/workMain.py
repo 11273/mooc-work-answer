@@ -233,7 +233,10 @@ def run_start_work(ck1, ck2, work_exam_type, course_open_id, is_work_score):
                     continue
                 # 填空题的特殊处理
                 if answer_map['questionType'] == 5:
-                    print(answer_map)
+                    if len(i['answerList']) > 1:
+                        print('\t\t\t3. 作答中... 结果: 多个填空，暂不支持，输出答案请注意提取！ \t类型 %s \t题目: %s \t答案: %s' % (
+                            question_type_type_map[answer_map['questionType']], i['TitleText'], answer_map['Answer']))
+                        continue
                     answer_res = onlineHomeworkCheckSpace(ck1, i['questionId'], answer_map['Answer'],
                                                           answer_map['questionType'], work_exam_preview['uniqueId'])
                 else:
