@@ -141,7 +141,4 @@
 ---
 ## 投币支持
 
-<center>
-  <img src="./images/wxpay.jpg" width="40%">
-  <img src="./images/alipay.jpg" width="40%">
-</center>
+![pay](./images/pay.png)
