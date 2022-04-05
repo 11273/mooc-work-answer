@@ -249,7 +249,7 @@ def run_start_work(ck1, ck2, work_exam_type, course_open_id, is_work_score):
                     answer_map['Answer'] = chr(97 + int(answer_map['Answer'].replace(",", ""))).upper()
                 if answer_map['questionType'] == 2:
                     answer_map['Answer'] = ', '.join(
-                        [chr(97 + int(x)).upper() for x in answer_map['Answer'].split(",")])
+                        [chr(97 + int(x)).upper() for x in answer_map['Answer'].split(",") if x is not ''])
                 if answer_map['questionType'] == 3:
                     answer_map['Answer'] = '正确' if answer_map['Answer'] == '1' else '错误'
                 print('\t\t\t3. 作答中... 结果: %s \t类型: %s \t答案: %s \t题目: %s' % (

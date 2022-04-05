@@ -19,7 +19,7 @@ username2 = ""  # 账号
 password2 = ""  # 密码
 
 # 账号1(大号)刷课
-is_look_video = False
+is_look_video = True
 
 # 小号退出所有课程
 is_withdraw_course = False
