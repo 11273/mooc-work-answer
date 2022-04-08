@@ -120,7 +120,7 @@ def onlineHomeworkAnswer(cookies, question_id, answer, question_type, unique_id)
         'questionType': question_type,
         'uniqueId': unique_id
     }
-    post = requests.post(url=ONLINE_HOMEWORK_ANSWER, params=params, cookies=cookies)
+    post = requests.post(url=ONLINE_HOMEWORK_ANSWER, data=params, cookies=cookies)
     return post.json()
 
 
