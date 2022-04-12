@@ -5,6 +5,7 @@
 # @Note : 
 # @File : initMooc.py
 # @Software: PyCharm
+import os
 import time
 from io import BytesIO
 
@@ -41,8 +42,20 @@ def manual_identify_verify_code(verify_code_content):
     :param verify_code_content: 验证码 content
     :return: 验证码
     """
-    Image.open(BytesIO(verify_code_content)).show()
-    return input("请输入验证码：")
+    try:
+        Image.open(BytesIO(verify_code_content)).show()
+        verify_code_content_value = input("请输入验证码：")
+    except Exception as e:
+        print(e)
+        verify_code_file = './verify_code.jpg'
+        print('打开验证码失败!!! 请前往该项目根目录找到并打开 verify_code.jpg 后输入验证码!!!')
+        with open(verify_code_file, "wb", ) as f:
+            f.write(verify_code_content)
+        verify_code_content_value = input("请输入验证码：")
+        # 删除验证码照片
+        if os.path.exists(verify_code_file):
+            os.remove(verify_code_file)
+    return verify_code_content_value
 
 
 def to_url(name, password, login_fail_num):
@@ -78,7 +91,7 @@ def login(name, password):  # 0.登录
         result = to_url(name, password, login_fail_num)
         json_result = result.json()
         if json_result['code'] == 1 and json_result['msg'] == "登录成功":
-            print("==================== 登陆成功:【" + str(name), json_result['schoolName'],  "】 ====================\n")
+            print("==================== 登陆成功:【" + str(name), json_result['schoolName'], "】 ====================\n")
             return result.cookies
         else:
             print("\t\t--->", json_result['msg'])

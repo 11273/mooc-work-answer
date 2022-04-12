@@ -25,6 +25,8 @@
 
 + 2022/4/4: 多个空的填空题不作答
 
++ 2022/4/12: Pillow 库安装失败时，可手动打开验证码
+
 ## 实现功能
 
 | 功能  | 介绍      | 完成  |
@@ -36,12 +38,20 @@
 
 ## 运行环境
 
-+ python3.6+
++ python ≥ 3.6 < 3.9 (3.9部分用户安装不了Pillow库)
 + 运行所需 pip 包请自行切换到本项目根目录使用以下命令进行安装
 
   ```pip
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
   ```
+
+  或 (requests 库必须装，pillow库为自动打开验证码图片(可选安装))
+  
+  ```pip
+   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requests
+   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r pillow==8.4.0
+  ```
+  
 
 1. 需要两个账号（仅刷课可以只需要一个账号，不需要小号）
    + 一个是你需要刷课的账号，一般你自己都有，
@@ -99,7 +109,8 @@
 >
 >> 单个空的填空题没有问题，多个空的填空题暂时无法填入答案，也导致无法提交
 >
-> 3. -
+> 3. __Pillow库安装失败？__
+>> 目前除 requests 库为必需安装，Pillow库不安装也可正常运行
 
 ## BUG 提交
 
