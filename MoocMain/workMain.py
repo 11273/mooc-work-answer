@@ -207,7 +207,16 @@ def run_work_withdraw_course(cookies, course_open_id, stu_id):
 
 
 work_exam_type_map = {0: '作业', 1: '测验', 2: '考试'}
-question_type_type_map = {1: '单选题', 2: '多选题', 3: '判断题', 5: '填空题', 6: '问答题', 10: '文件作答题'}
+question_type_type_map = {
+    1: '单选题',
+    2: '多选题',
+    3: '判断题',
+    5: '填空题',
+    6: '问答题',
+    7: '匹配题',
+    8: '阅读理解题',
+    10: '文件作答题'
+}
 
 
 def run_start_work(ck1, ck2, work_exam_type, course_open_id, is_work_score):
@@ -229,16 +238,29 @@ def run_start_work(ck1, ck2, work_exam_type, course_open_id, is_work_score):
             if answer_map:
                 if not answer_map['Answer']:
                     print('\t\t\t3. 作答中... 结果: 找到答案，但答案为空！ \t类型 %s \t题目: %s' % (
-                        question_type_type_map[answer_map['questionType']], i['TitleText']))
+                        question_type_type_map.get(answer_map['questionType'], '未知'), i['TitleText']))
                     continue
-                # 填空题的特殊处理
+                # TODO: 填空题的特殊处理 (大学生创业基础 黄河水利职业技术学院 所属专业: 公共基础课)
                 if answer_map['questionType'] == 5:
                     if len(i['answerList']) > 1:
                         print('\t\t\t3. 作答中... 结果: 多个填空，暂不支持，输出答案请注意提取！ \t类型 %s \t题目: %s \t答案: %s' % (
-                            question_type_type_map[answer_map['questionType']], i['TitleText'], answer_map['Answer']))
+                            question_type_type_map.get(answer_map['questionType'], '未知'), i['TitleText'],
+                            answer_map['Answer']))
                         continue
                     answer_res = onlineHomeworkCheckSpace(ck1, i['questionId'], answer_map['Answer'],
                                                           answer_map['questionType'], work_exam_preview['uniqueId'])
+                # TODO: 匹配题的特殊处理 暂时没有处理（毛泽东思想和中国特色社会主义 课程负责人：张小兰 开课名称：第八次开课 作业：第一章作业
+                elif answer_map['questionType'] == 7:
+                    print('\t\t\t3. 作答中... 结果: 匹配题暂不支持，输出答案请注意提取！ \t类型 %s \t题目: %s \t答案: %s' % (
+                        question_type_type_map.get(answer_map['questionType'], '未知'), i['TitleText'],
+                        answer_map['Answer']))
+                    continue
+                # TODO: 阅读理解题的特殊处理 暂时没有处理（毛泽东思想和中国特色社会主义 课程负责人：张小兰 开课名称：第八次开课 作业：第一章作业
+                elif answer_map['questionType'] == 8:
+                    print('\t\t\t3. 作答中... 结果: 阅读理解题暂不支持，输出答案请注意提取！ \t类型 %s \t题目: %s \t答案: %s' % (
+                        question_type_type_map.get(answer_map['questionType'], '未知'), i['TitleText'],
+                        answer_map['Answer']))
+                    continue
                 else:
                     answer_res = onlineHomeworkAnswer(ck1, i['questionId'], answer_map['Answer'],
                                                       answer_map['questionType'], work_exam_preview['uniqueId'])
