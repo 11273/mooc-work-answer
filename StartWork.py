@@ -62,7 +62,7 @@ if __name__ == '__main__':
     work_exam_type_map = {0: '作业', 1: '测验', 2: '考试'}
 
     if is_look_video:
-        mook_video.start(user_cookies['ck1'])
+        mook_video.start(user_cookies['ck1'], is_continue_work)
         print(">>> 刷课程序运行结束")
 
     if not user_cookies.get('ck2', None):

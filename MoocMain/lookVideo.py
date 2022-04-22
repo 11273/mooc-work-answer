@@ -121,7 +121,7 @@ def statStuProcessCellLogAndTimeLong(cookies, courseOpenId, cellId, videoTimeTot
     return result
 
 
-def start(cookies):
+def start(cookies, is_continue_work):
     try:
         course = getCourseOpenList(cookies)
     except Exception as e:
@@ -135,8 +135,9 @@ def start(cookies):
     print("------------------------------------------------------------3S后将开始刷课")
     time.sleep(3)
     for i in course:
-        # if i['courseName'] != "妇科护理":
-        #     continue
+        if i['courseName'] in is_continue_work:
+            print('【大号】 跳过课程 \t当前课程 \t【%s】' % i['courseName'])
+            continue
         print("进入课程：" + i['courseName'])
         time.sleep(1)
         # 一级目录
