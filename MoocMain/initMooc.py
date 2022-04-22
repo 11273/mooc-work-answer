@@ -59,8 +59,11 @@ def manual_identify_verify_code(verify_code_content):
 
 
 def to_url(name, password, login_fail_num):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
+    }
     code_url = "https://mooc.icve.com.cn/portal/LoginMooc/getVerifyCode?ts={}".format(time.time())
-    code_result = requests.post(url=code_url)
+    code_result = requests.post(url=code_url, headers=headers)
     # ----------去除自动输入验证码start
     # if login_fail_num < 3:
     #     code_value = auto_identify_verify_code(code_result.content)
