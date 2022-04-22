@@ -18,6 +18,9 @@ BASE_URL = 'https://mooc.icve.com.cn'
 # 登录
 LOGIN_SYSTEM_URL = BASE_URL + '/portal/LoginMooc/loginSystem'
 
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
+}
 
 # def auto_identify_verify_code(verify_code_content):
 #     """
@@ -59,11 +62,8 @@ def manual_identify_verify_code(verify_code_content):
 
 
 def to_url(name, password, login_fail_num):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
-    }
     code_url = "https://mooc.icve.com.cn/portal/LoginMooc/getVerifyCode?ts={}".format(time.time())
-    code_result = requests.post(url=code_url, headers=headers)
+    code_result = requests.post(url=code_url, headers=HEADERS)
     # ----------去除自动输入验证码start
     # if login_fail_num < 3:
     #     code_value = auto_identify_verify_code(code_result.content)
@@ -77,7 +77,7 @@ def to_url(name, password, login_fail_num):
         'password': password,
         'verifycode': code_value
     }
-    result = requests.post(url=LOGIN_SYSTEM_URL, data=data, cookies=code_result.cookies)
+    result = requests.post(url=LOGIN_SYSTEM_URL, data=data, cookies=code_result.cookies, headers=HEADERS)
     return result
 
 

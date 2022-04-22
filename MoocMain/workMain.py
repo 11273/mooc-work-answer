@@ -54,12 +54,16 @@ GET_ALL_COURSE_CLASS_URL = BASE_URL + '/portal/Course/getAllCourseClass'
 ADD_MY_MOOC_COURSE = BASE_URL + '/study/Learn/addMyMoocCourse'
 
 
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
+}
+
 # cookies = None
 
 
 def getMyCourse(cookies):  # 1 我的课程列表
     # isFinished 只获取没有结束的课程
-    get = requests.get(url=GET_MY_COURSE_URL, params={'isFinished': 0, 'pageSize': 1000000}, cookies=cookies)
+    get = requests.get(url=GET_MY_COURSE_URL, params={'isFinished': 0, 'pageSize': 1000000}, cookies=cookies, headers=HEADERS)
     return get.json()
 
 
@@ -69,7 +73,7 @@ def getWorkExamList(cookies, course_open_id, work_exam_type):  # 2 获取作业 
         'courseOpenId': course_open_id,
         'workExamType': work_exam_type  # 0是作业，1是测验，2是考试
     }
-    get = requests.get(url=GET_WORK_EXAM_LIST_URL, params=params, cookies=cookies)
+    get = requests.get(url=GET_WORK_EXAM_LIST_URL, params=params, cookies=cookies, headers=HEADERS)
     return get.json()  # 添加课程成功返回
 
 
@@ -77,7 +81,7 @@ def workExamPreview(cookies, work_exam_id):  # 3 做作业
     params = {
         'workExamId': work_exam_id,
     }
-    post = requests.post(url=WORK_EXAM_PREVIEW_URL, params=params, cookies=cookies)
+    post = requests.post(url=WORK_EXAM_PREVIEW_URL, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -89,10 +93,10 @@ def workExamSave(cookies, unique_id, work_exam_id, work_exam_type):  # 4 交作�
     }
     if work_exam_type == 2:
         params['examId'] = work_exam_id
-        post = requests.post(url=ONLINE_EXAM_SAVE_URL, params=params, cookies=cookies)
+        post = requests.post(url=ONLINE_EXAM_SAVE_URL, params=params, cookies=cookies, headers=HEADERS)
     else:
         params['workExamId'] = work_exam_id
-        post = requests.post(url=WORK_EXAM_SAVE_URL, params=params, cookies=cookies)
+        post = requests.post(url=WORK_EXAM_SAVE_URL, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -101,7 +105,7 @@ def workExamDetail(cookies, work_exam_id, course_open_id):  # 5 查看作答列�
         'workExamId': work_exam_id,
         'courseOpenId': course_open_id
     }
-    post = requests.post(url=WORK_EXAM_DETAIL_URL, params=params, cookies=cookies)
+    post = requests.post(url=WORK_EXAM_DETAIL_URL, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -120,7 +124,7 @@ def onlineHomeworkAnswer(cookies, question_id, answer, question_type, unique_id)
         'questionType': question_type,
         'uniqueId': unique_id
     }
-    post = requests.post(url=ONLINE_HOMEWORK_ANSWER, data=params, cookies=cookies)
+    post = requests.post(url=ONLINE_HOMEWORK_ANSWER, data=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -140,7 +144,7 @@ def onlineHomeworkCheckSpace(cookies, question_id, answer, question_type, unique
         'questionType': question_type,
         'uniqueId': unique_id
     }
-    post = requests.post(url=ONLINE_HOMEWORK_CHECK_SPACE, params=params, cookies=cookies)
+    post = requests.post(url=ONLINE_HOMEWORK_CHECK_SPACE, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -150,7 +154,7 @@ def workExamHistory(cookies, work_exam_id, student_work_id, course_open_id):  # 
         'studentWorkId': student_work_id,
         'courseOpenId': course_open_id
     }
-    post = requests.post(url=WORK_EXAM_HISTORY_URL, params=params, cookies=cookies)
+    post = requests.post(url=WORK_EXAM_HISTORY_URL, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -159,7 +163,7 @@ def withdrawCourse(cookies, course_open_id, user_id):  # 8 退出课程
         'courseOpenId': course_open_id,
         'userId': user_id
     }
-    post = requests.post(url=COURSE_WITHDRAW_COURSE, params=params, cookies=cookies)
+    post = requests.post(url=COURSE_WITHDRAW_COURSE, params=params, cookies=cookies, headers=HEADERS)
     return post.json()
 
 
@@ -168,7 +172,7 @@ def addMyMoocCourse(cookies, course_open_id):  # 3 添加到我的课程
         'courseOpenId': course_open_id,
         'courseId': ''
     }
-    get = requests.post(url=ADD_MY_MOOC_COURSE, params=params, cookies=cookies)
+    get = requests.post(url=ADD_MY_MOOC_COURSE, params=params, cookies=cookies, headers=HEADERS)
     return get.json()  # 添加课程成功返回
 
 
