@@ -31,4 +31,8 @@
 
 ![3](./images/python-step3.jpg)
 
+![3.1](./images/python-step3.1.png)
+
 ![4](./images/python-step4.jpg)
+
+![4.1](./images/python-step4.1.png)
