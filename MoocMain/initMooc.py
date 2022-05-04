@@ -11,7 +11,7 @@ import sys
 import time
 from io import BytesIO
 
-import ddddocr
+# import ddddocr
 import requests
 from PIL import Image
 
@@ -35,7 +35,7 @@ def get_verify_code():
         get_num -= 1
         code_result = requests.post(url=GET_VERIFY_CODE.format(ts=time.time()), headers=HEADERS)
         if get_num > 4:
-            print('自动识别验证码-->', end=' ')
+            # print('自动识别验证码-->', end=' ')
             try:
                 ocr = ddddocr.DdddOcr(show_ad=False, old=True)
                 code_value = ocr.classification(code_result.content)
@@ -45,7 +45,7 @@ def get_verify_code():
                 else:
                     print('识别成功:', code_value, end=' ')
             except NameError as e:
-                print(e)
+                # print(e)
                 get_num = 4
                 continue
         else:
@@ -64,10 +64,10 @@ def get_verify_code():
                 if os.path.exists(verify_code_file):
                     os.remove(verify_code_file)
         if not code_result.cookies or not code_value:
-            print('识别验证码出错，程序退出!')
+            input('识别验证码出错，程序退出!')
             sys.exit(0)
         return {'verify_code_ck': code_result.cookies, 'verify_code_value': code_value}
-    print('多次未成功识别验证码，程序退出，请重新运行!')
+    input('多次未成功识别验证码，程序退出，请重新运行!')
     sys.exit(0)
 
 
@@ -93,7 +93,7 @@ def to_login(name, password):  # 0.登录
         print("====> 登陆成功:【", json_result['schoolName'], "】")
         return result.cookies
     else:
-        print("====> 登陆失败", json_result['msg'])
+        input("====> 登陆失败 %s" % json_result['msg'])
         sys.exit(0)
 
 
@@ -109,8 +109,8 @@ def save_cookies(username1, password1, username2=None, password2=None):  # 登�
         else:
             print("\n>>> 未填写账号2信息，仅刷课不答题!")
     else:
-        print("请填写账号1 账号以及密码!!!")
-        exit(0)
+        input("请填写账号1 账号以及密码!!!")
+        sys.exit(0)
     return ck
 
 
@@ -129,12 +129,28 @@ def run(username1,
         try:
             user_cookies = save_cookies(username1, password1, username2, password2)
             print('\n')
+            username1course = mooc_work.getMyCourse(user_cookies['ck1'])['list']
+            print("*" * 40, '大号所有课程', "*" * 40)
+            filter_map = {}
+            filter_idx = 0
+            for course_item in username1course:
+                filter_idx += 1
+                print('*\t【', filter_idx, '】', '总进度:', str(course_item['process']) + '%\t\t课程名:',
+                      course_item['courseName'])
+                filter_map[filter_idx] = course_item['courseName']
+            print("*" * 90, '\n')
+            filter_list = input('(可选)请输入需要跳过的课程序号，英文逗号隔开(例: 1,3,4): ') or []
+            if filter_list:
+                filter_list.replace(" ", "").split(',')
+                is_continue_work = [filter_map[int(i)] for i in filter_list.replace(" ", "").split(',') if i]
+
             if is_look_video:
                 print('-' * 60, '\n' + '-' * 25, '刷课中！', '-' * 25, '\n' + '-' * 60, '\n')
                 mook_video.start(user_cookies['ck1'], is_continue_work)
 
             if not user_cookies.get('ck2', None):
-                exit(0)
+                input("未填写账号2信息，不进行答题，程序运行完成!!!")
+                sys.exit(0)
 
             print('-' * 60, '\n' + '-' * 25, '答题中！', '-' * 25, '\n' + '-' * 60, '\n')
 
