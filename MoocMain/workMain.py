@@ -9,6 +9,7 @@ import csv
 import json
 import logging
 import random
+import time
 
 import requests
 
@@ -58,16 +59,15 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
 }
 
-# cookies = None
-
 
 def getMyCourse(cookies):  # 1 我的课程列表
-    # isFinished 只获取没有结束的课程
+    time.sleep(0.25)
     get = requests.get(url=GET_MY_COURSE_URL, params={'isFinished': 0, 'pageSize': 1000000}, cookies=cookies, headers=HEADERS)
     return get.json()
 
 
 def getWorkExamList(cookies, course_open_id, work_exam_type):  # 2 获取作业 考试 测验
+    time.sleep(0.25)
     params = {
         'pageSize': 50000,
         'courseOpenId': course_open_id,
@@ -78,6 +78,7 @@ def getWorkExamList(cookies, course_open_id, work_exam_type):  # 2 获取作业 
 
 
 def workExamPreview(cookies, work_exam_id):  # 3 做作业
+    time.sleep(0.25)
     params = {
         'workExamId': work_exam_id,
     }
@@ -86,6 +87,7 @@ def workExamPreview(cookies, work_exam_id):  # 3 做作业
 
 
 def workExamSave(cookies, unique_id, work_exam_id, work_exam_type):  # 4 交作业
+    time.sleep(0.5)
     params = {
         'uniqueId': unique_id,
         'workExamType': work_exam_type,
@@ -101,6 +103,7 @@ def workExamSave(cookies, unique_id, work_exam_id, work_exam_type):  # 4 交作�
 
 
 def workExamDetail(cookies, work_exam_id, course_open_id):  # 5 查看作答列表
+    time.sleep(0.25)
     params = {
         'workExamId': work_exam_id,
         'courseOpenId': course_open_id
@@ -110,14 +113,7 @@ def workExamDetail(cookies, work_exam_id, course_open_id):  # 5 查看作答列�
 
 
 def onlineHomeworkAnswer(cookies, question_id, answer, question_type, unique_id):  # 6 填答题卡
-    '''
-    填答题卡
-    :param question_id: 题目ID
-    :param answer: 答案
-    :param question_type: 1单选 2多选 3判断
-    :param unique_id: 每次点做作业都会出现一个id，目前发现不提交作业就不会变
-    :return:
-    '''
+    time.sleep(0.5)
     params = {
         'questionId': question_id,
         'answer': answer,
@@ -129,14 +125,7 @@ def onlineHomeworkAnswer(cookies, question_id, answer, question_type, unique_id)
 
 
 def onlineHomeworkCheckSpace(cookies, question_id, answer, question_type, unique_id):  # 6 填答题卡
-    '''
-    填答题卡(填空题的特殊处理)
-    :param question_id: 题目ID
-    :param answer: 答案
-    :param question_type: 1单选 2多选 3判断 5填空
-    :param unique_id: 每次点做作业都会出现一个id，目前发现不提交作业就不会变
-    :return:
-    '''
+    time.sleep(0.5)
     params = {
         'questionId': question_id,
         'answer': "",
@@ -149,6 +138,7 @@ def onlineHomeworkCheckSpace(cookies, question_id, answer, question_type, unique
 
 
 def workExamHistory(cookies, work_exam_id, student_work_id, course_open_id):  # 7 获取答案
+    time.sleep(0.25)
     params = {
         'workExamId': work_exam_id,
         'studentWorkId': student_work_id,
@@ -159,6 +149,7 @@ def workExamHistory(cookies, work_exam_id, student_work_id, course_open_id):  # 
 
 
 def withdrawCourse(cookies, course_open_id, user_id):  # 8 退出课程
+    time.sleep(0.25)
     params = {
         'courseOpenId': course_open_id,
         'userId': user_id
@@ -167,47 +158,17 @@ def withdrawCourse(cookies, course_open_id, user_id):  # 8 退出课程
     return post.json()
 
 
-def addMyMoocCourse(cookies, course_open_id):  # 3 添加到我的课程
+def addMyMoocCourse(cookies, course_open_id, verify_code=None, vc_ck=None):  # 3 添加到我的课程
+    time.sleep(0.25)
     params = {
         'courseOpenId': course_open_id,
         'courseId': ''
     }
+    if verify_code:
+        params['verifycode'] = verify_code
+        cookies['verifycode'] = vc_ck
     get = requests.post(url=ADD_MY_MOOC_COURSE, params=params, cookies=cookies, headers=HEADERS)
     return get.json()  # 添加课程成功返回
-
-
-def csvUtil(file_name, rows, *headers):  # 写 csv 文件
-    # 题目id，作业类型，答案id
-    headers = ['questionId', 'questionType', 'Answer']
-
-    with open(file_name + '.csv', 'w', newline='') as f:
-        f_csv = csv.writer(f)
-        f_csv.writerow(headers)
-        f_csv.writerows(rows)
-
-
-# def csv_to_dict(filename):
-#     try:
-#         with open(filename, 'r') as read_obj:
-#             dict_reader = DictReader(read_obj)
-#             list_of_dict = list(dict_reader)
-#             result = json.dumps(list_of_dict, indent=2)
-#         return result
-#     except IOError as err:
-#         print("I/O error({0})".format(err))
-
-
-# def csvUtil(file_name, rows, *headers):  # 写 csv 文件
-#     # 课程名， 第几次开课，课程id，作业名，作业id，答案id
-#     headers = ['courseName', 'courseOpenName', 'courseOpenId', 'Title', 'workExamId', 'stuWorkExamId']
-#
-#     with open(file_name + '.csv', 'w', newline='')as f:
-#         f_csv = csv.writer(f)
-#         f_csv.writerow(headers)
-#         f_csv.writerows(rows)
-
-def run_work_withdraw_course(cookies, course_open_id, stu_id):
-    return withdrawCourse(cookies, course_open_id, stu_id)
 
 
 work_exam_type_map = {0: '作业', 1: '测验', 2: '考试'}

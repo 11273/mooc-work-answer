@@ -4,10 +4,8 @@
 # @Site : 
 # @File : lookVideo.py
 # @Software: PyCharm
-import json
 import random
 import time
-import traceback
 
 import requests
 
@@ -16,246 +14,129 @@ headers = {
 }
 
 
-# 1.获取所有课程，拿到id-------->
 def getCourseOpenList(cookies):
-    """
-    获取所有课程
-    :param cookies: cookies
-    :return:
-    """
+    time.sleep(0.25)
     url = "https://mooc.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
-    result = json.loads(requests.post(url=url, headers=headers, cookies=cookies).text)
+    result = requests.post(url=url, headers=headers, cookies=cookies).json()
     return result['list']
 
 
-# 2.得到一级目录-------->
-def getProcessList(cookies, courseId):
-    """
-    得到一级目录
-    :param cookies: cookies
-    :param courseId: gtjkawksy5jf7raso8gdq
-    :return:
-    """
+def getProcessList(cookies, course_id):
+    time.sleep(0.25)
     url = "https://mooc.icve.com.cn/study/learn/getProcessList"
-    result = json.loads(requests.post(url=url, data={'courseOpenId': courseId}, headers=headers, cookies=cookies).text)
+    result = requests.post(url=url, data={'courseOpenId': course_id}, headers=headers, cookies=cookies).json()
     return result['proces']['moduleList']
 
 
-# 3.得到二级目录-------->
-def getTopicByModuleId(cookies, courseId, moduleId):
-    """
-    得到二级目录
-    :param cookies: cookies
-    :param courseId: courseOpenId
-    :param moduleId: moduleId
-    :return:
-    """
+def getTopicByModuleId(cookies, course_id, module_id):
+    time.sleep(0.25)
     url = "https://mooc.icve.com.cn/study/learn/getTopicByModuleId"
     data = {
-        'courseOpenId': courseId,
-        'moduleId': moduleId
+        'courseOpenId': course_id,
+        'moduleId': module_id
     }
-    result = json.loads(requests.post(url=url, data=data, headers=headers, cookies=cookies).text)
+    result = requests.post(url=url, data=data, headers=headers, cookies=cookies).json()
     return result['topicList']
 
 
-# 4.获得三级目录（详细信息）--------->
-def getCellByTopicId(cookies, courseId, topicId):
-    """
-    获得三级目录（详细信息）
-    :param cookies: cookies
-    :param courseId: courseOpenId
-    :param topicId: topicId
-    :return:
-    """
+def getCellByTopicId(cookies, course_id, topic_id):
+    time.sleep(0.25)
     url = "https://mooc.icve.com.cn/study/learn/getCellByTopicId"
     data = {
-        'courseOpenId': courseId,
-        'topicId': topicId
+        'courseOpenId': course_id,
+        'topicId': topic_id
     }
-    result = json.loads(requests.post(url=url, data=data, headers=headers, cookies=cookies).text)
+    result = requests.post(url=url, data=data, headers=headers, cookies=cookies).json()
     return result['cellList']
 
 
-# 5.拿到学习时长等信息---------->
-def viewDirectory(cookies, courseOpenId, cellId):
-    """
-    拿到学习时长等信息
-    :param cookies: cookies
-    :param courseOpenId: courseOpenId
-    :param cellId: cellId
-    :return:
-    """
-    time.sleep(1)
+def viewDirectory(cookies, course_open_id, cell_id):
+    time.sleep(0.25)
     url = "https://mooc.icve.com.cn/study/learn/viewDirectory"
     data = {
-        'courseOpenId': courseOpenId,
-        'cellId': cellId
+        'courseOpenId': course_open_id,
+        'cellId': cell_id
     }
-    result = requests.post(url=url, data=data, headers=headers, cookies=cookies)
-    result = json.loads(result.text)
+    result = requests.post(url=url, data=data, headers=headers, cookies=cookies).json()
     return result['courseCell']
 
 
-# 6.开始刷课--------->
-def statStuProcessCellLogAndTimeLong(cookies, courseOpenId, cellId, videoTimeTotalLong):
-    """
-    开始刷课
-    :param cookies: cookies
-    :param courseOpenId: courseOpenId
-    :param cellId: cellId
-    :param videoTimeTotalLong: videoTimeTotalLong
-    :return:
-    """
-    time.sleep(1.5)
+def statStuProcessCellLogAndTimeLong(cookies, course_open_id, cell_id, video_time_total_long):
+    time.sleep(1.25)
     url = "https://mooc.icve.com.cn/study/learn/statStuProcessCellLogAndTimeLong"
-    if videoTimeTotalLong != 0:
-        videoTimeTotalLong += random.randint(20, 100)
+    if video_time_total_long != 0:
+        video_time_total_long += random.randint(20, 100)
     data = {
-        'courseOpenId': courseOpenId,
-        'cellId': cellId,
-        'auvideoLength': videoTimeTotalLong,
-        'videoTimeTotalLong': videoTimeTotalLong
+        'courseOpenId': course_open_id,
+        'cellId': cell_id,
+        'auvideoLength': video_time_total_long,
+        'videoTimeTotalLong': video_time_total_long
     }
-    result = json.loads(requests.post(url=url, data=data, headers=headers, cookies=cookies).text)
+    result = requests.post(url=url, data=data, headers=headers, cookies=cookies).json()
     return result
 
 
-def start(cookies, is_continue_work):
-    try:
-        course = getCourseOpenList(cookies)
-    except Exception as e:
-        traceback.print_exc()
-        print("异常course = getCourseOpenList(cookies)，3S后重试")
-        time.sleep(3)
-        course = getCourseOpenList(cookies)
-        pass
-    for i in course:
-        print("可刷 的课程有：" + i['courseName'])
-    print("------------------------------------------------------------3S后将开始刷课")
-    time.sleep(3)
-    for i in course:
-        if i['courseName'] in is_continue_work:
-            print('【大号】 跳过课程 \t当前课程 \t【%s】' % i['courseName'])
-            continue
-        print("进入课程：" + i['courseName'])
-        time.sleep(1)
-        # 一级目录
-        try:
-            moduleList1 = getProcessList(cookies=cookies, courseId=i[
-                'courseOpenId'])
-        except Exception as e:
-            traceback.print_exc()
-            print("异常moduleList1 = getProcessList(cookies=cookies, courseId=i['courseOpenId'])，3S后重试")
-            time.sleep(3)
-            moduleList1 = getProcessList(cookies=cookies, courseId=i['courseOpenId'])
-            pass
-        for j in moduleList1:
-            time.sleep(0.25)
-            if j['percent'] == 100:
-                print("\t跳过课程: " + j['name'] + '课程已刷进度 100%')
-                continue
-            print("\t" + j['name'])
-            # 二级目录
-            try:
-                moduleList2 = getTopicByModuleId(cookies=cookies, courseId=i['courseOpenId'], moduleId=j['id'])
-            except Exception as e:
-                traceback.print_exc()
-                print(
-                    "异常moduleList2 = getTopicByModuleId(cookies=cookies, courseId=i['courseOpenId'], moduleId=j['id'])，3S后重试")
-                time.sleep(3)
-                moduleList2 = getTopicByModuleId(cookies=cookies, courseId=i['courseOpenId'], moduleId=j['id'])
-                pass
-            for k in moduleList2:
-                time.sleep(0.25)
-                if k['studyStatus'] == 1:
-                    print("\t\t跳过已刷章节: " + k['name'])
-                    continue
-                print("\t\t" + k['name'])
-                # 三级目录
-                try:
-                    moduleList3 = getCellByTopicId(cookies=cookies, courseId=i['courseOpenId'], topicId=k['id'])
-                except Exception as e:
-                    traceback.print_exc()
-                    print(
-                        "异常moduleList3 = getCellByTopicId(cookies=cookies, courseId=i['courseOpenId'], topicId=k['id'])，3S后重试")
-                    time.sleep(3)
-                    moduleList3 = getCellByTopicId(cookies=cookies, courseId=i['courseOpenId'], topicId=k['id'])
-                    pass
-                for m in moduleList3:
-                    time.sleep(0.25)
-                    print("\t\t\t" + m['cellName'])
-                    # 如果只有三级目录
-                    if not len(m['childNodeList']):
-                        # =================================================================================================================================
-                        # 如果课程完成-不刷课
-                        if m['isStudyFinish'] is True:
-                            print(
-                                "\t\t\t\t" + "\t类型：" + m['categoryName'] + "\t\t------课程完成，不刷课-------\t\t" + m[
-                                    'cellName'])
-                            continue
-                        # 拿课程信息
-                        try:
-                            info = viewDirectory(cookies=cookies, courseOpenId=m['courseOpenId'], cellId=m['Id'])
-                        except:
-                            traceback.print_exc()
-                            print(
-                                "异常info = viewDirectory(cookies=cookies, courseOpenId=m['courseOpenId'], cellId=m['Id'])，3S后重试")
-                            time.sleep(3)
-                            info = viewDirectory(cookies=cookies, courseOpenId=m['courseOpenId'], cellId=m['Id'])
-                            pass
-                        # 将信息拿去刷课
-                        if not m['categoryName'] == "视频" and not m['categoryName'] == "音频":
-                            # 如果不是视频或者音频
-                            isOK = statStuProcessCellLogAndTimeLong(cookies=cookies, courseOpenId=info['CourseOpenId'],
-                                                                    cellId=info['Id'],
-                                                                    videoTimeTotalLong=0)
-                        # 四级目录(最终)
-                        else:
-                            # 是视频或者音频
-                            isOK = statStuProcessCellLogAndTimeLong(cookies=cookies, courseOpenId=info['CourseOpenId'],
-                                                                    cellId=info['Id'],
-                                                                    videoTimeTotalLong=info['VideoTimeLong'])
-                        if isOK['code'] == 1 and isOK['isStudy'] is True:
-                            print("\t\t\t\t" + "\t类型：" + m['categoryName'] + "\t\t-----刷课OK----\t\t" + m['cellName'])
-                        else:
-                            print("\t\t\t\t" + "\t类型：" + m['categoryName'] + "\t\t-----ERROR----\t\t" + m['cellName'])
-                    else:
-                        # =================================================================================================================================
-                        for n in m['childNodeList']:
-                            time.sleep(0.5)
-                            # 如果课程完成-不刷课
-                            if n['isStudyFinish'] is True:
-                                print("\t\t\t\t" + "\t类型：" + n[
-                                    'categoryName'] + "\t\t------课程完成，不刷课-------\t\t" + n['cellName'])
-                                continue
-                            # 拿课程信息
+def statStuProcess(cookies, info, category_name, cell_name):
+    course_open_id = info['CourseOpenId']
+    view_id = info['Id']
+    video_time_long = info['VideoTimeLong']
+    result_is_ok = statStuProcessCellLogAndTimeLong(cookies, course_open_id, view_id, video_time_long)
+    if result_is_ok['code'] == 1 and result_is_ok['isStudy'] is True:
+        print("\t\t\t\t~~~~>刷课成功~", "\t类型：" + category_name, "\t\t\t" + cell_name)
+    else:
+        print("\t\t\t\t~~~~>ERROR~", "\t类型：" + category_name, "\t\t\t" + cell_name)
 
-                            try:
-                                info = viewDirectory(cookies=cookies, courseOpenId=n['courseOpenId'], cellId=n['Id'])
-                            except:
-                                traceback.print_exc()
-                                print(
-                                    "异常info = viewDirectory(cookies=cookies, courseOpenId=m['courseOpenId'], cellId=m['Id'])，3S后重试")
-                                time.sleep(3)
-                                info = viewDirectory(cookies=cookies, courseOpenId=n['courseOpenId'], cellId=n['Id'])
-                                pass
-                            # 将信息拿去刷课
-                            if not n['categoryName'] == "视频" and not n['categoryName'] == "音频":
-                                # 如果不是视频或者音频
-                                isOK = statStuProcessCellLogAndTimeLong(cookies=cookies,
-                                                                        courseOpenId=info['CourseOpenId'],
-                                                                        cellId=info['Id'],
-                                                                        videoTimeTotalLong=0)
-                            else:
-                                # 是视频或者音频
-                                isOK = statStuProcessCellLogAndTimeLong(cookies=cookies,
-                                                                        courseOpenId=info['CourseOpenId'],
-                                                                        cellId=info['Id'],
-                                                                        videoTimeTotalLong=info['VideoTimeLong'])
-                            if isOK['code'] == 1 and isOK['isStudy'] is True:
-                                print(
-                                    "\t\t\t\t" + "\t类型：" + n['categoryName'] + "\t\t-----刷课OK----\t\t" + n['cellName'])
-                            else:
-                                print(
-                                    "\t\t\t\t" + "\t类型：" + n['categoryName'] + "\t\t-----ERROR----\t\t" + n['cellName'])
+
+def start(cookies, is_continue_work):
+    course_list = getCourseOpenList(cookies)
+    print("*" * 25, '待刷的课程(需要跳过的课程请参考此处课程名)', "*" * 25)
+    for course_item in course_list:
+        if course_item['courseName'] in is_continue_work:
+            print('* 【pass】  ', '总进度:', str(course_item['process']) + '%\t\t课程名:', course_item['courseName'])
+        else:
+            print('*\t\t\t', '总进度:', str(course_item['process']) + '%\t\t课程名:', course_item['courseName'])
+    print("*" * 90, '\n')
+    for i in range(3, 0, -1):
+        print("等待刷课(秒):", i)
+        time.sleep(1)
+    for course_item in course_list:
+        if course_item['courseName'] in is_continue_work:
+            continue
+        print("\n* 进入课程：【%s】" % course_item['courseName'])
+        module_list1 = getProcessList(cookies, course_item['courseOpenId'])
+        for module_list1_i in module_list1:
+            if module_list1_i['percent'] == 100:
+                print("\t~跳过(进度100%)~: ", module_list1_i['name'])
+                continue
+            print("\t" + module_list1_i['name'])
+            module_list2 = getTopicByModuleId(cookies, course_item['courseOpenId'], module_list1_i['id'])
+            for module_list2_i in module_list2:
+                if module_list2_i['studyStatus'] == 1:
+                    print("\t\t~跳过已刷章节~: ", module_list2_i['name'])
+                    continue
+                print("\t\t" + module_list2_i['name'])
+                module_list3 = getCellByTopicId(cookies, course_item['courseOpenId'], module_list2_i['id'])
+                for module_list3_i in module_list3:
+                    if not len(module_list3_i['childNodeList']):
+                        category_name = module_list3_i['categoryName']
+                        cell_name = module_list3_i['cellName']
+                        # 如果课程完成-不刷课
+                        if module_list3_i['isStudyFinish'] is True:
+                            print("\t\t\t\t~~~~>课程已完成，跳过~\t\t类型：" + category_name + "\t\t名称：" + cell_name)
+                            continue
+                        info = viewDirectory(cookies, module_list3_i['courseOpenId'], module_list3_i['Id'])
+                        statStuProcess(cookies, info, category_name, cell_name)
+                    else:
+                        for module_list4_i in module_list3_i['childNodeList']:
+                            category_name = module_list4_i['categoryName']
+                            cell_name = module_list4_i['cellName']
+                            if module_list4_i['isStudyFinish'] is True:
+                                print("\t\t\t\t~~~~>课程已完成，跳过~\t\t类型：" + category_name + "\t\t名称：" + cell_name)
+                                continue
+                            info = viewDirectory(cookies, module_list4_i['courseOpenId'], module_list4_i['Id'])
+                            statStuProcess(cookies, info, category_name, cell_name)
+    course_list = getCourseOpenList(cookies)
+    print("*" * 40, '刷课已完成', "*" * 40)
+    for course_item in course_list:
+        print('*\t', '总进度:', str(course_item['process']) + '%\t\t课程名:', course_item['courseName'])
+    print("*" * 90, '\n')
