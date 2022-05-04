@@ -169,4 +169,4 @@ dmypy.json
 .pyre/
 /题库.csv
 
-./verify_code.jpg
+/verify_code.jpg
