@@ -14,6 +14,10 @@
 
 - **[新手运行此项目前往 >](REAEME_RUN.md)**
 
+## 下载
+
+- v1.0.0 [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v1.0.0)
+
 ## 已知问题
 
 - 目前多个填空题没有自动填入答案，但会在控制台输出答案，请自行查找
@@ -31,6 +35,8 @@
 - 2022/4/12: Pillow 库安装失败时，可手动打开验证码
 
 - 2022/5/4: 验证码登录优化，整体效率优化
+
+- 2022/5/4: windows 运行版发布
 
 ## 实现功能
 
@@ -115,6 +121,7 @@
 ## BUG 提交
 
 - 请详细提供 **错误信息** 以及错误出现的 **代码行**
+- [提交 BUG 规范](https://github.com/11273/mooc-work-answer/issues/22)
 - [![Email](http://rescdn.qqmail.com/zh_CN/htmledition/images/function/qm_open/ico_mailme_11.png 'QQ Email')](http://mail.qq.com/cgi-bin/qm_share?t=qm_mailme&email=KBkbHhsQEBgZHxpoWVkGS0dF)
 
 ## 免责声明
@@ -126,7 +133,6 @@
 ⚠️ 如使用本项目代码造成侵权与作者无关
 
 [![Stargazers over time](https://starchart.cc/11273/mooc-work-answer.svg)](https://starchart.cc/11273/mooc-work-answer)
-
 
 ## 效果展示
 
