@@ -18,9 +18,6 @@ from PIL import Image
 import MoocMain.lookVideo as mook_video
 import MoocMain.workMain as mooc_work
 
-# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logger = logging.getLogger(__name__)
-
 BASE_URL = 'https://mooc.icve.com.cn'
 # 登录
 LOGIN_SYSTEM_URL = BASE_URL + '/portal/LoginMooc/loginSystem'
@@ -105,12 +102,12 @@ def save_cookies(username1, password1, username2=None, password2=None):  # 登�
     if username1 and password1:
         ck['ck1'] = to_login(username1, password1)
         if username2 and password2:
-            if username2 == username2 and password1 == password2:
+            if username1 == username2 and password1 == password2:
                 print('小号请勿使用与大号相同账号！！！')
                 sys.exit(0)
             ck['ck2'] = to_login(username2, password2)
         else:
-            print(">>> 未填写账号2信息，仅刷课不答题!")
+            print("\n>>> 未填写账号2信息，仅刷课不答题!")
     else:
         print("请填写账号1 账号以及密码!!!")
         exit(0)

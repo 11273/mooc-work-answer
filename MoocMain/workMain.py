@@ -5,7 +5,6 @@
 # @Note : 
 # @File : workMain.py
 # @Software: PyCharm
-import csv
 import json
 import logging
 import random
