@@ -78,7 +78,7 @@ def to_login(name, password):  # 0.登录
     :param password: 密码
     :return: cookies
     """
-    print('正在登录账号:', name, end='\t')
+    print('\n正在登录账号:', name, end='\t')
     verify_code = get_verify_code()
     vc_ck = verify_code['verify_code_ck']
     vc_val = verify_code['verify_code_value']
