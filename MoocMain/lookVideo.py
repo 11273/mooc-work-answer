@@ -82,9 +82,9 @@ def statStuProcess(cookies, info, category_name, cell_name):
     video_time_long = info['VideoTimeLong']
     result_is_ok = statStuProcessCellLogAndTimeLong(cookies, course_open_id, view_id, video_time_long)
     if result_is_ok['code'] == 1 and result_is_ok['isStudy'] is True:
-        print("\t\t\t\t~~~~>刷课成功~", "\t类型：" + category_name, "\t\t\t" + cell_name)
+        print("\t\t\t\t~~~~>刷课成功~", "\t\t类型：" + category_name, "\t\t\t" + cell_name)
     else:
-        print("\t\t\t\t~~~~>ERROR~", "\t类型：" + category_name, "\t\t\t" + cell_name)
+        print("\t\t\t\t~~~~>ERROR~", "\t\t类型：" + category_name, "\t\t\t" + cell_name)
 
 
 def start(cookies, is_continue_work):

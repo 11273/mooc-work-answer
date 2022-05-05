@@ -78,7 +78,7 @@ def to_login(name, password):  # 0.登录
     :param password: 密码
     :return: cookies
     """
-    print('正在登录账号:', name, end='\t')
+    print('\n正在登录账号:', name, end='\t')
     verify_code = get_verify_code()
     vc_ck = verify_code['verify_code_ck']
     vc_val = verify_code['verify_code_value']
@@ -231,3 +231,4 @@ def run(username1,
 
     print('\n' + '=' * 111, '\n' + '=' * 20, '运行结束 感谢使用 支持一下！By https://github.com/11273/mooc-work-answer', '=' * 20,
           '\n' + '=' * 111, '\n')
+    input('\n程序运行完成，请前往mooc官网检查刷课进度，按任意键退出程序...')
