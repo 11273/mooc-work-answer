@@ -2,7 +2,7 @@
 
 [![stars](https://img.shields.io/github/stars/11273/mooc-work-answer)](https://github.com/11273/mooc-work-answer)
 [![forks](https://img.shields.io/github/forks/11273/mooc-work-answer)](https://github.com/11273/mooc-work-answer)
-[![issues](https://img.shields.io/github/issues/11273/mooc-work-answer?style=plastic)](https://github.com/11273/mooc-work-answer/issues)
+[![issues](https://img.shields.io/github/issues/11273/mooc-work-answer)](https://github.com/11273/mooc-work-answer/issues)
 
 - **智慧职教 【考试+测验+作业+刷课】**
 
