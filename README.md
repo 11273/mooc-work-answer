@@ -6,7 +6,7 @@
 
 - **智慧职教 【考试+测验+作业+刷课】**
 
-- **仅适用于: <https://mooc.icve.com.cn/>**
+- **仅适用于: <https://mooc.icve.com.cn>**
 
 - **详细刷课技术参考** [技术篇](https://www.52pojie.cn/thread-1338063-1-1.html)
 
