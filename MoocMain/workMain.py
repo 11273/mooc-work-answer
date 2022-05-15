@@ -9,6 +9,7 @@ import json
 import logging
 import random
 import time
+import re
 
 import requests
 
@@ -125,10 +126,14 @@ def onlineHomeworkAnswer(cookies, question_id, answer, question_type, unique_id)
 
 def onlineHomeworkCheckSpace(cookies, question_id, answer, question_type, unique_id):  # 6 填答题卡
     time.sleep(0.5)
+    pattern = re.compile(r'<[^>]+>',re.S)
+    answer = pattern.sub('', answer)
+    answerJson_old = [{'ortOrder':0,'Content': answer}]
+    answerJson = str(answerJson_old).replace("'","\"").replace(r"\n","")
     params = {
         'questionId': question_id,
-        'answer': "",
-        'answerJson': str([{"Content": answer}]),
+        'answer': answer,
+        'answerJson': answerJson,
         'questionType': question_type,
         'uniqueId': unique_id
     }
