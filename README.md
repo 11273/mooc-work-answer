@@ -19,3 +19,14 @@
 ## 下载
 
 - v1.0.0 [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v1.0.0)
+
+
+## 免责声明
+
+⚠️ 本项目仅限于学习交流使用，项目中使用的代码及功能如有侵权或违规请联系作者删除
+
+⚠️ 本项目接口数据均来自于 mooc，请勿用于其它商业目的
+
+⚠️ 如使用本项目代码造成侵权与作者无关
+
+[![Stargazers over time](https://starchart.cc/11273/mooc-work-answer.svg)](https://starchart.cc/11273/mooc-work-answer)
