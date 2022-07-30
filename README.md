@@ -19,6 +19,7 @@
 ## 下载
 
 - v1.0.0 [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v1.0.0)
+- v2.0.0-beta [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0-beta)
 
 
 ## 免责声明
