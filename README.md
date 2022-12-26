@@ -98,7 +98,8 @@
 
 - 请详细提供 **错误信息** 以及错误出现的 **代码行**
 - [提交 BUG 规范](https://github.com/11273/mooc-work-answer/issues/22)
-- 邮箱: 11273@duck.com
+- 提交请前往: [点击前往 >>>](https://github.com/11273/mooc-work-answer/issues/new)
+- 邮箱: darbydavid336@gmail.com (提交至 issues 更快回复)
 
 ## 免责声明
 
