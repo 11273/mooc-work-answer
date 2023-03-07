@@ -8,7 +8,7 @@
 
 - **智慧职教 【 ~~考试+测验+作业+~~ 刷课】+ 新版 【刷课】**
 
-- **仅适用于: <https://mooc.icve.com.cn/>**
+- **仅适用于: <https://mooc-old.icve.com.cn> 以及 <https://icve-mooc.icve.com.cn/>**
 
 - **详细刷课技术参考** [刷课技术篇>>>](https://www.52pojie.cn/thread-1338063-1-1.html)
 
@@ -35,8 +35,11 @@
 - v1.0.0 [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v1.0.0)
 - v2.0.0-beta [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0-beta)
 - v2.0.0 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0)
+- v2.0.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.1)
 
 ## 更新状态
+
+- 2023/3/7: 旧版API由 __mooc__.icve.com.cn 改为 __mooc-old__.icve.com.cn
 
 - 2022/4/2: 移除自动识别验证码（识别验证码的库太大不好装，减少运行成本）
 
