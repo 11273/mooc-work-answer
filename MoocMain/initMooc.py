@@ -19,7 +19,7 @@ from MoocMain.log import Logger
 
 logger = Logger(__name__).get_log()
 
-BASE_URL = 'https://mooc.icve.com.cn'
+BASE_URL = 'https://mooc-old.icve.com.cn'
 # 登录
 LOGIN_SYSTEM_URL = BASE_URL + '/portal/LoginMooc/loginSystem'
 # 获取验证码
@@ -90,7 +90,7 @@ def save_cookies(session, username1, password1):  # 登录
 
 def getCourseOpenList(session):
     time.sleep(0.25)
-    url = "https://mooc.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
+    url = "https://mooc-old.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
     result = session.post(url=url, headers=HEADERS).json()
     return result['list']
 

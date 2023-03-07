@@ -20,7 +20,7 @@ headers = {
 
 async def getCourseOpenList(session):
     await asyncio.sleep(0.25)
-    url = "https://mooc.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
+    url = "https://mooc-old.icve.com.cn/portal/Course/getMyCourse?isFinished=0&pageSize=5000"
     async with session.post(url=url, headers=headers) as resp:
         data = await resp.json(content_type=None)
         return data['list']
@@ -28,7 +28,7 @@ async def getCourseOpenList(session):
 
 async def getProcessList(session, course_id):
     await asyncio.sleep(0.25)
-    url = "https://mooc.icve.com.cn/study/learn/getProcessList"
+    url = "https://mooc-old.icve.com.cn/study/learn/getProcessList"
     async with session.post(url=url, data={'courseOpenId': course_id}, headers=headers) as resp:
         data = await resp.json(content_type=None)
         return data['proces']['moduleList']
@@ -36,7 +36,7 @@ async def getProcessList(session, course_id):
 
 async def getTopicByModuleId(session, course_id, module_id):
     await asyncio.sleep(0.25)
-    url = "https://mooc.icve.com.cn/study/learn/getTopicByModuleId"
+    url = "https://mooc-old.icve.com.cn/study/learn/getTopicByModuleId"
     data = {
         'courseOpenId': course_id,
         'moduleId': module_id
@@ -48,7 +48,7 @@ async def getTopicByModuleId(session, course_id, module_id):
 
 async def getCellByTopicId(session, course_id, topic_id):
     await asyncio.sleep(0.25)
-    url = "https://mooc.icve.com.cn/study/learn/getCellByTopicId"
+    url = "https://mooc-old.icve.com.cn/study/learn/getCellByTopicId"
     data = {
         'courseOpenId': course_id,
         'topicId': topic_id
@@ -60,7 +60,7 @@ async def getCellByTopicId(session, course_id, topic_id):
 
 async def viewDirectory(session, course_open_id, cell_id):
     # await asyncio.sleep(0.1)
-    url = "https://mooc.icve.com.cn/study/learn/viewDirectory"
+    url = "https://mooc-old.icve.com.cn/study/learn/viewDirectory"
     data = {
         'courseOpenId': course_open_id,
         'cellId': cell_id
@@ -72,7 +72,7 @@ async def viewDirectory(session, course_open_id, cell_id):
 
 async def statStuProcessCellLogAndTimeLong(session, course_open_id, cell_id, video_time_total_long):
     await asyncio.sleep(0.25)
-    url = "https://mooc.icve.com.cn/study/learn/statStuProcessCellLogAndTimeLong"
+    url = "https://mooc-old.icve.com.cn/study/learn/statStuProcessCellLogAndTimeLong"
     if video_time_total_long != 0:
         video_time_total_long += random.randint(20, 100)
     data = {
