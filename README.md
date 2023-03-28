@@ -76,13 +76,14 @@
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
   ```
 
-  或 (**必装**: requests、aiohttp 库，**选装**: lxml(过网关须使用)、pillow(自动打开验证码图片))
+  或 (**必装**: requests、aiohttp 库，**选装**: lxml(过网关须使用)、pillow(自动打开验证码图片)、pycryptodome(新版需要))
 
   ```pip
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requests
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r aiohttp
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r pillow==8.4.0
    pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r lxml
+   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r pycryptodome==3.17
   ```
 
 ## 技术简述

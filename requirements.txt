@@ -1,5 +1,5 @@
-Pillow==9.3.0
-requests~=2.25.1
-
-lxml~=4.9.1
-aiohttp~=3.8.3
+aiohttp==3.8.3
+lxml==4.5.1
+Pillow==9.4.0
+pycryptodome==3.17
+requests==2.24.0
