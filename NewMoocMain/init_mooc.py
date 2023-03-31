@@ -14,6 +14,7 @@ import requests
 from lxml import etree
 
 from MoocMain.log import Logger
+from NewMoocMain.verify import start_verify
 
 logger = Logger(__name__).get_log()
 
@@ -24,6 +25,7 @@ HEADERS = {
 
 def auth(session, username, password):
     data = {
+        "imgCode": start_verify(),
         "userName": username,
         "password": password,
         "type": 1
@@ -34,7 +36,7 @@ def auth(session, username, password):
 
 
 def is_login(session):
-    url = "https://icve-mooc.icve.com.cn/learning/o/student/training/islogin.action"
+    url = "https://mooc.icve.com.cn/learning/o/student/training/islogin.action"
     post = session.post(url=url, headers=HEADERS)
     logger.debug(post.text)
     return post.text
@@ -42,7 +44,7 @@ def is_login(session):
 
 def student_mooc_select_mooc_course(session, token):
     params = f"token={token}&siteCode=zhzj&curPage=1&pageSize=9999&selectType=1"
-    url = "https://icve-mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
+    url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
     return post.json()
@@ -244,6 +246,8 @@ def openLearnResItem(id, type, w=None, c=None):
         # 查询视频总时长
         video_resources = query_video_resources(session, id)
         data_video_time = video_resources['data']['videoTime']
+        if not data_video_time:
+            return
         # logger.debug(video_resources)
         video_learn_record_detail(session, course_id, item_id, data_video_time)
         logger.debug(video_resources)
@@ -269,12 +273,16 @@ if __name__ == '__main__':
     logger.debug(login)
     token = re.search("(?<=token:').*?(?=')", login).group(0)
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token)
-    logger.debug(mooc_select_mooc_course)
+    logger.info(mooc_select_mooc_course)
+    if 'data' not in mooc_select_mooc_course:
+        logger.info("未查询到需要学习的课程！")
+        exit(0)
     for course in mooc_select_mooc_course['data']:
         course_id = course[6]
         # learning_time = learning_time_query_learning_time(session, course_id)
         learning_time = {'learnTime': "待获取"}
-        logger.info("【%s】{已学习时长: %s}- %s %s %s", course[0], learning_time['learnTime'], course[1], course[2], course[3])
+        logger.info("【%s】{已学习时长: %s}- %s %s %s", course[0], learning_time['learnTime'], course[1], course[2],
+                    course[3])
         # 进入课程
         sign_learn(session, course_id, mooc_select_mooc_course['loginId'])
         html_page_course = courseware_index(session, course_id)
