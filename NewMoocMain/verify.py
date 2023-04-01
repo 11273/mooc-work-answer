@@ -57,17 +57,15 @@ def verify_code(client_uid, word, key, token):
 def get_position(original_image_base64, jigsaw_image_base64):
     original_image = Image.open(BytesIO(base64.b64decode(original_image_base64)))
     jigsaw_image = Image.open(BytesIO(base64.b64decode(jigsaw_image_base64)))
-    target_width, target_height = 384, 200
-    original_image = original_image.resize((target_width, target_height), resample=Image.Resampling.LANCZOS)
     original_cv_image = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2BGR)
     jigsaw_cv_image = cv2.cvtColor(np.array(jigsaw_image), cv2.COLOR_RGB2BGR)
-    bg_edge = cv2.Canny(original_cv_image, 150, 180)
-    tp_edge = cv2.Canny(jigsaw_cv_image, 150, 180)
+    bg_edge = cv2.Canny(original_cv_image, 100, 200)
+    tp_edge = cv2.Canny(jigsaw_cv_image, 100, 200)
     bg_pic = cv2.cvtColor(bg_edge, cv2.COLOR_GRAY2RGB)
     cut_pic = cv2.cvtColor(tp_edge, cv2.COLOR_GRAY2RGB)
     res = cv2.matchTemplate(bg_pic, cut_pic, cv2.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)  # 寻找最优匹配
-    return max_loc[0] * 310 / 384
+    return max_loc[0]
 
 
 def start_verify():
