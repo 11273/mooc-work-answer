@@ -25,8 +25,6 @@
 > - 📢 直接运行请前往下载已打包版本 **[点击前往>>>](https://github.com/11273/mooc-work-answer/releases)**
 > - 📣 讨论请前往 Discussions **[点击前往>>>](https://github.com/11273/mooc-work-answer/discussions)**
 > - 📣 提交问题请前往 Issues **[点击前往>>>](https://github.com/11273/mooc-work-answer/issues)**
-> - **新版测试使用说明:**
-> - 新版目前临时测试使用，暂不稳定，打开 `NewMoocMain/init_mooc.py` 中 `auth(session, "此处填写登录账号", "此处填写登录密码")` 填写账号密码即可运行(仅需运行 `init_mooc.py` 文件)
 
 - **[新手运行此项目前往 >](REAEME_RUN.md)**
 
@@ -36,6 +34,7 @@
 - v2.0.0-beta [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0-beta)
 - v2.0.0 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0)
 - v2.0.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.1)
+- v2.0.2 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.2)
 
 ## 更新状态
 
