@@ -18,6 +18,8 @@ from NewMoocMain.verify import start_verify
 
 logger = Logger(__name__).get_log()
 
+session = requests.session()
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
 }
@@ -32,6 +34,7 @@ def auth(session, username, password):
     }
     url = "https://sso.icve.com.cn/data/userLogin"
     post = session.post(url=url, json=data, headers=HEADERS)
+    session.cookies.set('UNTYXLCOOKIE', f'"{getUNTYXLCOOKIE(username)}"')
     logger.info(post.text)
 
 
@@ -65,6 +68,12 @@ def sign_learn(session, course_id, login_id):
     logger.debug(post.text)
 
 
+def getUNTYXLCOOKIE(un):
+    s = f'user.icve.com.cn||0||{un}||zhzj'
+    encoded = base64.b64encode(s.encode()).decode()
+    return encoded
+
+
 def courseware_index(session, course_id):
     params = {
         "params.courseId": course_id,
@@ -72,10 +81,14 @@ def courseware_index(session, course_id):
     url = "https://course.icve.com.cn/learnspace/learn/learn/templateeight/courseware_index.action"
     post = session.get(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    if 'id="parm_0"' in post.text:
-        # TODO 阿里云防火墙算法
-        raise Exception("出现此提示，请网页退出账号并等待半小时或一小时后再执行!")
-    return post.text
+    if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
+        # TODO 阿里云防火墙算法: 算法根据报错返回，需要解析script，只需要获取到 alicfw
+        # raise Exception("出现此提示，请网页退出账号并等待半小时或一小时后再执行!")
+        alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
+        session.cookies.set('alicfw', alicfw)
+        return courseware_index(session, course_id)
+    else:
+        return post.text
 
 
 def query_video_resources(session, item_id):
@@ -85,7 +98,12 @@ def query_video_resources(session, item_id):
     url = "https://course.icve.com.cn/learnspace/learn/weixinCourseware/queryVideoResources.json"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    return post.json()
+    if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
+        alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
+        session.cookies.set('alicfw', alicfw)
+        return query_video_resources(session, item_id)
+    else:
+        return post.json()
 
 
 def learning_time_query_course_item_info(session, item_id):
@@ -265,10 +283,8 @@ def get_xpath_text(dom, xpath, index=0):
     return dom.xpath(xpath)[index]
 
 
-if __name__ == '__main__':
-    session = requests.session()
-    # TODO 账号密码填写
-    auth(session, "此处填写登录账号", "此处填写登录密码")
+def run(username, password):
+    auth(session, username, password)
     login = is_login(session)
     logger.debug(login)
     token = re.search("(?<=token:').*?(?=')", login).group(0)
