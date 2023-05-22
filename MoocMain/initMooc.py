@@ -14,7 +14,7 @@ from io import BytesIO
 import requests
 
 import MoocMain.lookVideo as mook_video
-import workMain
+import MoocMain.workMain as workMain
 from MoocMain.log import Logger
 
 logger = Logger(__name__).get_log()
@@ -160,7 +160,9 @@ def run(username1, password1,
             logger.info('-' * 60 + '\n')
             asyncio.run(mook_video.start(session, is_continue_work))
             if not user_cookies.get('ck2', None):
-                raise Exception("获取Cookie失败！")
+                logger.info('未获取小号信息, 不答题 程序退出！')
+                input('按回车退出...')
+                exit(0)
 
             logger.info('-' * 60)
             logger.info('-' * 25 + '答题中！' + '-' * 25)
