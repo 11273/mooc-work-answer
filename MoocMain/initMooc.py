@@ -11,10 +11,10 @@ import random
 import time
 from io import BytesIO
 
-
 import requests
 
 import MoocMain.lookVideo as mook_video
+import workMain
 from MoocMain.log import Logger
 
 logger = Logger(__name__).get_log()
@@ -77,10 +77,18 @@ def to_login(session, name, password):  # 0.登录
         exit(0)
 
 
-def save_cookies(session, username1, password1):  # 登录
+def save_cookies(session, username1, password1, username2, password2):  # 登录
     ck = {}
     if username1 and password1:
         ck['ck1'] = to_login(session, username1, password1)
+        if username2 and password2:
+            if username1 == username2 and password1 == password2:
+                logger.error('小号请勿使用与大号相同账号！！！ 程序关闭，请重新执行......')
+                input()
+                exit(0)
+            ck['ck2'] = to_login(session, username2, password2)
+        else:
+            logger.info("\n>>> 未填写账号2信息，仅刷课不答题!")
     else:
         logger.error("请填写账号1 账号以及密码!!! 程序关闭，请重新执行......")
         input()
@@ -95,14 +103,21 @@ def getCourseOpenList(session):
     return result['list']
 
 
-def run(username1, password1):
+def run(username1, password1,
+        username2,
+        password2,
+        is_withdraw_course,
+        is_work_exam_type0,
+        is_work_exam_type1,
+        is_work_exam_type2,
+        is_work_score):
     session = requests.session()
 
     # TODO 出现微信扫码认证，请打开下面注释
     # from moocGateWay import mooc_gateway_auth
     # mooc_gateway_auth(session)
 
-    user_cookies = save_cookies(session, username1, password1)
+    user_cookies = save_cookies(session, username1, password1, username2, password2)
     pass_work = None
     for err_n in range(10, 0, -1):
         is_continue_work = []
@@ -144,6 +159,78 @@ def run(username1, password1):
             logger.info('-' * 25 + '刷课开始！' + '-' * 25)
             logger.info('-' * 60 + '\n')
             asyncio.run(mook_video.start(session, is_continue_work))
+            if not user_cookies.get('ck2', None):
+                raise Exception("获取Cookie失败！")
+
+            logger.info('-' * 60)
+            logger.info('-' * 25 + '答题中！' + '-' * 25)
+            logger.info('-' * 60)
+
+            # 0.获取小号的所有课程
+            session.cookies.update(user_cookies['ck2'])
+            username2course = workMain.getMyCourse(session)['list']
+            if is_withdraw_course:
+                # 1.退出小号的所有课程
+                for u2course_item in username2course:
+                    work_withdraw_course = workMain.withdrawCourse(session, u2course_item['courseOpenId'],
+                                                                   u2course_item['stuId'])
+                    logger.info('[小号退出课程] 结果: %s\t退出课程: %s', work_withdraw_course['msg'],
+                                u2course_item['courseName'])
+
+            # 3.添加大号课程给小号
+            username2course = workMain.getMyCourse(session)['list']
+            for u1course_item in username1course:
+                if u1course_item['courseOpenId'] in [x['courseOpenId'] for x in username2course]:
+                    logger.info('[小号添加课程] 结果: 课程已存在! \t\t添加课程: %s ', u1course_item['courseName'])
+                else:
+                    work_add_my_mooc_course = workMain.addMyMoocCourse(session,
+                                                                       u1course_item['courseOpenId'])
+                    logger.info('[小号添加课程] 结果: %s \t\t添加课程: %s ', work_add_my_mooc_course.get('msg', 'Fail'),
+                                u1course_item['courseName'])
+                    if work_add_my_mooc_course['code'] == -2:
+                        verify_code = get_verify_code(session)
+                        vc_ck = verify_code['verify_code_ck']
+                        vc_val = verify_code['verify_code_value']
+                        work_add_my_mooc_course = workMain.addMyMoocCourse(session, u1course_item['courseOpenId'],
+                                                                           vc_val, vc_ck['verifycode'])
+                        logger.info('[小号添加课程] 结果: %s \t\t添加课程: %s ',
+                                    work_add_my_mooc_course.get('msg', 'Fail'),
+                                    u1course_item['courseName'])
+
+            # 4.再次查看小号课程
+            username2course = workMain.getMyCourse(session)['list']
+            logger.info('%s 小号所有课程(请检查大号的课程已全部显示在此处) %s', "*" * 24, "*" * 24)
+            for course_item in username2course:
+                if course_item['courseName'] in is_continue_work:
+                    logger.info(
+                        '* 【pass】  总进度: %s %%\t\t课程名: %s', course_item['process'], course_item['courseName'])
+                else:
+                    logger.info(
+                        '*\t\t\t总进度: %s %%\t\t课程名: %s', course_item['process'], course_item['courseName'])
+            logger.info("*" * 90 + '\n')
+            logger.info('-' * 65)
+            logger.info('-' * 20 + '初始化课程成功，开始答题！' + '-' * 20)
+            logger.info('-' * 65)
+
+            # 5.小号做作业，考试，测验
+            work_exam_type = []
+            if is_work_exam_type0:
+                work_exam_type.append(0)
+            if is_work_exam_type1:
+                work_exam_type.append(1)
+            if is_work_exam_type2:
+                work_exam_type.append(2)
+            for t in work_exam_type:
+                for u1course in username1course:
+                    if u1course['courseName'] in is_continue_work:
+                        logger.info('【大号】 跳过课程 \t当前课程 \t【%s】', u1course['courseName'])
+                        continue
+                    # 6.大号开始答题
+                    logger.info('【大号】 开始答题 \t当前课程 \t【%s】', u1course['courseName'])
+                    workMain.run_start_work(session, user_cookies['ck1'], user_cookies['ck2'], t,
+                                            u1course['courseOpenId'],
+                                            is_work_score)
+                    logger.info('%s 答题结束, 必须登录官网检查, 部分未提交的请手动提交!!! %s', '*' * 20, '*' * 20)
             break
         except Exception as e:
             sleep_int = random.randint(10, 30)
