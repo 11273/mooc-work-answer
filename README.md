@@ -34,6 +34,7 @@
 - v2.0.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.1)
 - v2.0.2 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.2)
 - v2.1.0 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.0)
+- v2.1.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.1)
 
 ## 更新状态
 
