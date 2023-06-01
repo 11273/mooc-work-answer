@@ -84,7 +84,7 @@ def start_verify():
         if code_result['repCode'] == '0000':
             word = f"{code_result['repData']['token']}---{coordinate}"
             imgCode = get_aes(word, secret_key)
-            logger.info("成功。")
+            logger.info("滑块验证码验证成功。")
             return imgCode
         else:
             logger.info(code_result['repMsg'])

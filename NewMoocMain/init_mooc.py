@@ -34,8 +34,13 @@ def auth(session, username, password):
     }
     url = "https://sso.icve.com.cn/data/userLogin"
     post = session.post(url=url, json=data, headers=HEADERS)
-    session.cookies.set('UNTYXLCOOKIE', f'"{getUNTYXLCOOKIE(username)}"')
-    logger.info(post.text)
+    logger.debug(post.text)
+    if post.ok and post.json()['code'] == 200:
+        logger.info(f"登录成功: {username}")
+    else:
+        logger.info(f"登录失败: {username}")
+        input('程序退出')
+        exit(0)
 
 
 def is_login(session):
@@ -50,7 +55,12 @@ def student_mooc_select_mooc_course(session, token):
     url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    return post.json()
+    post_json = post.json()
+    if post_json is None or 'data' not in post_json or post_json['data'] is None:
+        logger.info('获取课程列表失败或获取为空！')
+        input('程序退出')
+        exit(0)
+    return post_json
 
 
 def sign_learn(session, course_id, login_id):
@@ -66,12 +76,10 @@ def sign_learn(session, course_id, login_id):
     url = "https://course.icve.com.cn/learnspace/sign/signLearn.action"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-
-
-def getUNTYXLCOOKIE(un):
-    s = f'user.icve.com.cn||0||{un}||zhzj'
-    encoded = base64.b64encode(s.encode()).decode()
-    return encoded
+    if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
+        alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
+        session.cookies.set('alicfw', alicfw)
+        return sign_learn(session, course_id, login_id)
 
 
 def courseware_index(session, course_id):
@@ -81,14 +89,7 @@ def courseware_index(session, course_id):
     url = "https://course.icve.com.cn/learnspace/learn/learn/templateeight/courseware_index.action"
     post = session.get(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
-        # TODO 阿里云防火墙算法: 算法根据报错返回，需要解析script，只需要获取到 alicfw
-        # raise Exception("出现此提示，请网页退出账号并等待半小时或一小时后再执行!")
-        alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
-        session.cookies.set('alicfw', alicfw)
-        return courseware_index(session, course_id)
-    else:
-        return post.text
+    return post.text
 
 
 def query_video_resources(session, item_id):
@@ -98,12 +99,7 @@ def query_video_resources(session, item_id):
     url = "https://course.icve.com.cn/learnspace/learn/weixinCourseware/queryVideoResources.json"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
-        alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
-        session.cookies.set('alicfw', alicfw)
-        return query_video_resources(session, item_id)
-    else:
-        return post.json()
+    return post.json()
 
 
 def learning_time_query_course_item_info(session, item_id):
@@ -288,17 +284,18 @@ def run(username, password):
     login = is_login(session)
     logger.debug(login)
     token = re.search("(?<=token:').*?(?=')", login).group(0)
+    logger.info(f"\t>>> 课程获取中...")
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token)
-    logger.info(mooc_select_mooc_course)
+    for mooc_course_item in mooc_select_mooc_course['data']:
+        logger.info(f"\t\t* {mooc_course_item[0]} - {mooc_course_item[1]} - {mooc_course_item[15]}")
+    logger.info(f"\t>>> 课程获取完毕! \n\n")
     if 'data' not in mooc_select_mooc_course:
         logger.info("未查询到需要学习的课程！")
         exit(0)
     for course in mooc_select_mooc_course['data']:
         course_id = course[6]
         # learning_time = learning_time_query_learning_time(session, course_id)
-        learning_time = {'learnTime': "待获取"}
-        logger.info("【%s】{已学习时长: %s}- %s %s %s", course[0], learning_time['learnTime'], course[1], course[2],
-                    course[3])
+        logger.info("【%s】 - %s %s %s", course[0], course[1], course[2], course[3])
         # 进入课程
         sign_learn(session, course_id, mooc_select_mooc_course['loginId'])
         html_page_course = courseware_index(session, course_id)

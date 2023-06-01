@@ -117,5 +117,7 @@ if __name__ == '__main__':
             username1 = input('请输入账号: ')  # 账号
             password1 = input('请输入密码: ')  # 密码
             NewMoocInit.run(username=username1, password=password1)
+    except Exception as e:
+        logger.exception(e)
     finally:
         input("程序结束...")
