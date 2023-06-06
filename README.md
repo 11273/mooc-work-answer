@@ -28,15 +28,12 @@
 
 ## 下载
 
-- v1.0.0 [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v1.0.0)
-- v2.0.0-beta [Download exe 绿色运行版](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0-beta)
-- v2.0.0 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.0)
-- v2.0.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.1)
-- v2.0.2 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.0.2)
-- v2.1.0 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.0)
-- v2.1.1 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.1)
+- v2.1.2 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.2)
+- 历史版本下载[请前往>>>](https://github.com/11273/mooc-work-answer/releases)
 
 ## 更新状态
+
+- 2023/6/6: 适配新版讨论与音频
 
 - 2023/5/22: 临时开放旧版答题功能
 
@@ -87,8 +84,13 @@
 
 ## 使用方法
 
+### 开发者运行
 1. 运行 `StartWork.py`
 2. 根据提示进行输入配置即可
+
+### 个人运行
+1. [前往下载最新版>>>](https://github.com/11273/mooc-work-answer/releases) 下载后点击运行
+2. 根据提示进行输入运行
 
 ## BUG 提交
 

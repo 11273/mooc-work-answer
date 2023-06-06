@@ -14,7 +14,7 @@ from MoocMain.log import Logger
 logger = Logger(__name__).get_log()
 
 logger.info('=' * 110)
-logger.info('%s【v2.1.1 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
+logger.info('%s【v2.1.2 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
 logger.info('=' * 110)
 
 # ****************************************** 配置 ******************************************
@@ -116,8 +116,14 @@ if __name__ == '__main__':
             # 账号1(大号)
             username1 = input('请输入账号: ')  # 账号
             password1 = input('请输入密码: ')  # 密码
-            NewMoocInit.run(username=username1, password=password1)
+            topic = int(input('是否自动讨论回复 1.是 or 2.否: ') or 2)
+            topic_content = None
+            if topic == 1:
+                print('\t请输入讨论回复内容,回复的不包括井号(默认随机), 例如\n\t\t输入多个文本随机井号后面的: #好#加油#积极响应\n\t\t输入单个将固定回复统一内容: #好')
+                topic_content = input('请输入回车默认(#好#加油#积极响应): ') or '#好#加油#积极响应'
+            NewMoocInit.run(username=username1, password=password1, topic_content=topic_content)
+        print("本次程序运行完成，正常结束。")
     except Exception as e:
         logger.exception(e)
     finally:
-        input("程序结束...")
+        input("程序结束，如遇错误请重新运行，多次重复错误请提交Github...")

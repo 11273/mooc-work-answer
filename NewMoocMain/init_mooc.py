@@ -20,6 +20,9 @@ logger = Logger(__name__).get_log()
 
 session = requests.session()
 
+topic_content_all = None
+user = None
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
 }
@@ -47,6 +50,9 @@ def is_login(session):
     url = "https://mooc.icve.com.cn/learning/o/student/training/islogin.action"
     post = session.post(url=url, headers=HEADERS)
     logger.debug(post.text)
+    if 'token' not in post.text:
+        logger.info(f"登录信息获取失败，重试中...: {post.text}")
+        return is_login(session)
     return post.text
 
 
@@ -88,7 +94,7 @@ def courseware_index(session, course_id):
     }
     url = "https://course.icve.com.cn/learnspace/learn/learn/templateeight/courseware_index.action"
     post = session.get(url=url, params=params, headers=HEADERS)
-    logger.debug(post.text)
+    # logger.debug(post.text)
     return post.text
 
 
@@ -136,6 +142,30 @@ def learning_time_save_video_learn_time_long_record(session, study_record):
     return post.json()
 
 
+def learning_time_save_audio_learn_detail_record(session, study_record):
+    params = {
+        "studyRecord": study_record,
+        # "limitId": limit_id,
+    }
+    url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveAudioLearnDetailRecord.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    logger.debug(post.text)
+    return post.json()
+
+
+def content_audio(session, course_id, item_id):
+    params = {
+        'params.courseId': course_id,
+        'params.itemId': item_id,
+    }
+    url = "https://course.icve.com.cn/learnspace/learn/learn/templateeight/content_audio.action"
+    get_html = session.get(url=url, params=params, headers=HEADERS)
+    # logger.debug(post.text)
+    html = etree.HTML(get_html.text)
+    audio_time = html.xpath('//input[@id="audioTime"]/@value')
+    return audio_time[0]
+
+
 def learning_time_query_learning_time(session, course_id):
     params = {
         "courseId": course_id,
@@ -172,7 +202,39 @@ def video_learn_record_detail(session, course_id, item_id, video_total_time):
     return post.text
 
 
-def get_aes(course_id, item_id, video_total_time):
+def course_topic_action(session, course_id, item_id, content):
+    def get__main_id__create_user_id(session):
+        params = {
+            'action': 'item',
+            'itemId': item_id,
+            'courseId': course_id,
+            'ssoUserId': user
+        }
+        url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
+        get_html = session.get(url=url, params=params, headers=HEADERS)
+        html = etree.HTML(get_html.text)
+        current_main_id = html.xpath('//input[@id="current_main_id"]/@value')
+        current_user_id = html.xpath('//input[@id="current_user_id"]/@value')
+        return current_main_id, current_user_id
+
+    main_id, create_user_id = get__main_id__create_user_id(session)
+    params = {
+        'action': 'reply',
+        'parentId': main_id,
+        'mainId': main_id,
+        'content': f'<p>{content}</p>',
+        'itemId': item_id,
+        'courseId': course_id,
+        'createUserId': create_user_id,
+        'createUserName': user,
+    }
+    url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
+    post = session.post(url=url, data=params, headers=HEADERS)
+    logger.debug(post.text)
+    return post.json()
+
+
+def get_aes(course_id, item_id, video_total_time, audio=False):
     def time_to_seconds(f):
         b = f.split(":")
         d = int(b[0])
@@ -222,6 +284,9 @@ def get_aes(course_id, item_id, video_total_time):
             'time5': format_str(p['studyTimeLong'], 20),
             'terminalType': p['terminalType'] if p.get('terminalType') else o
         }
+        if audio:
+            res['assessment'] = "1"
+            res['residenceTime'] = p['studyTimeLong'] + random.randint(10, 30)
         # logger.debug(res)
         return res
 
@@ -268,6 +333,22 @@ def openLearnResItem(id, type, w=None, c=None):
         aes = get_aes(course_id, item_id, data_video_time)
         learn_time_long_record = learning_time_save_video_learn_time_long_record(session, aes)
         logger.info("\t\t\t\t ~~~~>执行结果: %s", learn_time_long_record['info'])
+    elif type == "topic":
+        # 讨论
+        if topic_content_all is None or topic_content_all == '' or '#' not in topic_content_all:
+            logger.info("--> 没有获取到讨论回复模板，不执行讨论。")
+        else:
+            topic_content_list = topic_content_all.split('#')[1:]  # 获取井号分隔后的子串列表
+            topic_content = random.choice(topic_content_list)  # 随机选择一个子串
+            action = course_topic_action(session, course_id, item_id, topic_content)
+            logger.info("\t\t\t\t ~~~~>执行结果: %s, 回复内容: %s", action['success'], topic_content)
+    elif type == "audio":
+        # logger.debug(video_resources)
+        audio_time = content_audio(session, course_id, item_id)
+        aes = get_aes(course_id, item_id, audio_time, audio=True)
+        learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes)
+        logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
+                    learn_detail_record['data']['detailRecordResult']['msg'])
     else:
         course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
         logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
@@ -279,7 +360,11 @@ def get_xpath_text(dom, xpath, index=0):
     return dom.xpath(xpath)[index]
 
 
-def run(username, password):
+def run(username, password, topic_content):
+    global topic_content_all
+    global user
+    topic_content_all = topic_content
+    user = username
     auth(session, username, password)
     login = is_login(session)
     logger.debug(login)
