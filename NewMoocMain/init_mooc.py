@@ -69,23 +69,22 @@ def student_mooc_select_mooc_course(session, token):
     return post_json
 
 
-def sign_learn(session, course_id, login_id):
-    params = {
-        "template": "blue",
-        "courseId": course_id,
-        "loginType": True,
-        "loginId": login_id,
-        "sign": 0,
-        "siteCode": "zhzj",
-        "domain": "user.icve.com.cn",
+def sign_learn(session, course_id):
+    url = "https://mooc.icve.com.cn/patch/zhzj/dataCheck.action"
+    data = {
+        'courseId': course_id,
+        'checkType': 1,
+        'sign': 0,
+        'template': 'blue'
     }
-    url = "https://course.icve.com.cn/learnspace/sign/signLearn.action"
-    post = session.post(url=url, params=params, headers=HEADERS)
+    result = session.post(url, data=data, headers=HEADERS)
+    result_json = result.json()
+    post = session.get(url=result_json['data'], headers=HEADERS)
     logger.debug(post.text)
     if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
         alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
         session.cookies.set('alicfw', alicfw)
-        return sign_learn(session, course_id, login_id)
+        return sign_learn(session, course_id)
 
 
 def courseware_index(session, course_id):
@@ -382,7 +381,7 @@ def run(username, password, topic_content):
         # learning_time = learning_time_query_learning_time(session, course_id)
         logger.info("【%s】 - %s %s %s", course[0], course[1], course[2], course[3])
         # 进入课程
-        sign_learn(session, course_id, mooc_select_mooc_course['loginId'])
+        sign_learn(session, course_id)
         html_page_course = courseware_index(session, course_id)
         # logger.debug(html_page_course)
         html = etree.HTML(html_page_course)
