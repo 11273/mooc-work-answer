@@ -30,18 +30,20 @@ HEADERS = {
 
 def auth(session, username, password):
     data = {
-        "imgCode": start_verify(),
+        # "imgCode": start_verify(),
         "userName": username,
         "password": password,
         "type": 1
     }
-    url = "https://sso.icve.com.cn/data/userLogin"
+    url = "https://sso.icve.com.cn/prod-api/data/userLoginV2"
     post = session.post(url=url, json=data, headers=HEADERS)
     logger.debug(post.text)
-    if post.ok and post.json()['code'] == 200:
+    post_json = post.json()
+    if post.ok and post_json['code'] == 200:
         logger.info(f"登录成功: {username}")
+        return post_json['data']['token']
     else:
-        logger.info(f"登录失败: {username}")
+        logger.info(f"登录失败: {username} msg: {post_json['msg']}")
         input('程序退出')
         exit(0)
 
@@ -137,6 +139,7 @@ def learning_time_save_video_learn_time_long_record(session, study_record):
     }
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveVideoLearnDetailRecord.action"
     post = session.post(url=url, params=params, headers=HEADERS)
+    # 同一个视频同时请求两次需要间隔60S
     logger.debug(post.text)
     return post.json()
 
@@ -243,9 +246,6 @@ def get_aes(course_id, item_id, video_total_time, audio=False):
         return e
 
     def get_params(p):
-        i = 0
-        o = 0
-
         def format_str(c, a):
             l = ""
             k = len(str(c))
@@ -255,12 +255,12 @@ def get_aes(course_id, item_id, video_total_time, audio=False):
                 else:
                     g = a - k - 2
                     h = 1
-                    for _ in range(g):
+                    for e in range(g):
                         h = h * 10
                     b = int(random.random() * h)
                     f = len(str(b))
                     if f < g:
-                        for _ in range(g):
+                        for d in range(f, g):
                             b = b * 10
                     if k >= 10:
                         l += str(k)
@@ -268,8 +268,7 @@ def get_aes(course_id, item_id, video_total_time, audio=False):
                         l += "0" + str(k)
                     l += str(c) + str(b)
             else:
-                return c + ""
-
+                return str(c)
             return l
 
         res = {
@@ -279,9 +278,9 @@ def get_aes(course_id, item_id, video_total_time, audio=False):
             'time2': format_str(int(p['startTime']), 20),
             'time3': format_str(time_to_seconds(p['videoTotalTime']), 20),
             'time4': format_str(int(p['endTime']), 20),
-            'videoIndex': p['videoIndex'] if p.get('videoIndex') else i,
+            'videoIndex': p['videoIndex'] if p.get('videoIndex') else 0,
             'time5': format_str(p['studyTimeLong'], 20),
-            'terminalType': p['terminalType'] if p.get('terminalType') else o
+            'terminalType': p['terminalType'] if p.get('terminalType') else 0
         }
         if audio:
             res['assessment'] = "1"
@@ -364,10 +363,7 @@ def run(username, password, topic_content):
     global user
     topic_content_all = topic_content
     user = username
-    auth(session, username, password)
-    login = is_login(session)
-    logger.debug(login)
-    token = re.search("(?<=token:').*?(?=')", login).group(0)
+    token = auth(session, username, password)
     logger.info(f"\t>>> 课程获取中...")
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token)
     for mooc_course_item in mooc_select_mooc_course['data']:

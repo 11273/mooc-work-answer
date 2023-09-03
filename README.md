@@ -28,10 +28,12 @@
 
 ## 下载
 
-- v2.1.2 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.2)
+- v2.1.3 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.3)
 - 历史版本下载[请前往>>>](https://github.com/11273/mooc-work-answer/releases)
 
 ## 更新状态
+
+- 2023/9/3: 部分错误调整（目前视频出现“非法请求”需等待解决）
 
 - 2023/6/6: 适配新版讨论与音频
 
