@@ -7,14 +7,12 @@
 import base64
 import json
 import random
-import re
 import time
 
 import requests
 from lxml import etree
 
 from MoocMain.log import Logger
-from NewMoocMain.verify import start_verify
 
 logger = Logger(__name__).get_log()
 
@@ -63,7 +61,10 @@ def student_mooc_select_mooc_course(session, token):
     url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    post_json = post.json()
+    try:
+        post_json = post.json()
+    except Exception:
+        return student_mooc_select_mooc_course(session, token)
     if post_json is None or 'data' not in post_json or post_json['data'] is None:
         logger.info('获取课程列表失败或获取为空！')
         input('程序退出')
@@ -179,16 +180,15 @@ def learning_time_query_learning_time(session, course_id):
     return post.json()
 
 
-def learning_time_save_learning_time(session, course_id, limit_id):
+def learning_time_save_learning_time(session, course_id, study_time):
     params = {
         "courseId": course_id,
-        "studyTime": 300,
-        "limitId": limit_id,
+        "studyTime": study_time,
+        # "limitId": limit_id,
     }
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveLearningTime.action"
-    post = session.post(url=url, params=params, headers=HEADERS)
+    post = session.get(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
-    # print(post.text)
     return post.json()
 
 
@@ -236,7 +236,7 @@ def course_topic_action(session, course_id, item_id, content):
     return post.json()
 
 
-def get_aes(course_id, item_id, video_total_time, audio=False):
+def get_aes(session, course_id, item_id, video_total_time, audio=False):
     def time_to_seconds(f):
         b = f.split(":")
         d = int(b[0])
@@ -298,7 +298,7 @@ def get_aes(course_id, item_id, video_total_time, audio=False):
         "endTime": t,
         "studyTimeLong": t,
     }
-
+    learning_time_save_learning_time(session, course_id, t)
     logger.debug(data)
     from Crypto.Cipher import AES
     from Crypto.Util.Padding import pad
@@ -328,7 +328,7 @@ def openLearnResItem(id, type, w=None, c=None):
         # logger.debug(video_resources)
         video_learn_record_detail(session, course_id, item_id, data_video_time)
         logger.debug(video_resources)
-        aes = get_aes(course_id, item_id, data_video_time)
+        aes = get_aes(session, course_id, item_id, data_video_time)
         learn_time_long_record = learning_time_save_video_learn_time_long_record(session, aes)
         logger.info("\t\t\t\t ~~~~>执行结果: %s", learn_time_long_record['info'])
     elif type == "topic":
@@ -343,13 +343,17 @@ def openLearnResItem(id, type, w=None, c=None):
     elif type == "audio":
         # logger.debug(video_resources)
         audio_time = content_audio(session, course_id, item_id)
-        aes = get_aes(course_id, item_id, audio_time, audio=True)
+        aes = get_aes(session, course_id, item_id, audio_time, audio=True)
         learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes)
         logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
                     learn_detail_record['data']['detailRecordResult']['msg'])
     else:
         course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
         logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
+
+
+def load_mooc(session, token):
+    session.get(f"https://mooc.icve.com.cn/?token=${token}", headers=HEADERS)
 
 
 def get_xpath_text(dom, xpath, index=0):
@@ -364,6 +368,7 @@ def run(username, password, topic_content):
     topic_content_all = topic_content
     user = username
     token = auth(session, username, password)
+    load_mooc(session, token)
     logger.info(f"\t>>> 课程获取中...")
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token)
     for mooc_course_item in mooc_select_mooc_course['data']:
@@ -380,29 +385,44 @@ def run(username, password, topic_content):
         sign_learn(session, course_id)
         html_page_course = courseware_index(session, course_id)
         # logger.debug(html_page_course)
-        html = etree.HTML(html_page_course)
+        mooc_html = etree.HTML(html_page_course)
         # learnMenu 章根节点
-        root_menu_item = get_xpath_text(html, "//div[@id='learnMenu']")
+        root_menu_item = get_xpath_text(mooc_html, "//div[@id='learnMenu']")
+        # print(html.tostring(root_menu_item))
         # 章
-        chapter_xpath = "./div[@class='s_chapter']"
-        chapter = get_xpath_text(root_menu_item, "./div[@class='s_chapter']", index=-1)
+        chapter = get_xpath_text(root_menu_item,
+                                 "./div[contains(concat(' ', normalize-space(@class), ' '), ' s_chapter ')]", index=-1)
         section = get_xpath_text(root_menu_item, "./div[@class='s_sectionlist']", index=-1)
+
         # 节
         for i in range(len(chapter)):
             logger.info("\t %s", get_xpath_text(chapter[i], "@title"))
-            s_section = get_xpath_text(section[i], "./div[@class='s_section']", index=-1)
+            s_section = get_xpath_text(section[i],
+                                       "./div[contains(concat(' ', normalize-space(@class), ' '), ' s_section ')]",
+                                       index=-1)
             s_sectionwrap = get_xpath_text(section[i], "./div[@class='s_sectionwrap']", index=-1)
             for j in range(len(s_section)):
                 logger.info("\t\t %s", get_xpath_text(s_section[j], "@title"))
                 s_pointwrap = get_xpath_text(s_sectionwrap[j], "./div[contains(@class, 's_pointwrap')]", index=-1)
                 if len(s_pointwrap) > 0:
                     for m in range(len(s_pointwrap)):
-                        s_point = get_xpath_text(s_pointwrap[m], "./div[@class='s_point']", index=-1)
+                        s_point = get_xpath_text(s_pointwrap[m], "./div[contains(@class, 's_point')]", index=-1)
                         for k in range(len(s_point)):
-                            logger.info("\t\t\t %s", get_xpath_text(s_point[k], "./div[@class='s_pointti']/text()"))
-                            eval(get_xpath_text(s_point[k], "./@onclick").replace(";", ""))
+                            isCompletestate = int(get_xpath_text(s_point[k], "./@completestate")) == 1
+                            logger.info("\t\t\t %s",
+                                        get_xpath_text(s_point[k], "./div[contains(@class, 's_pointti')]/text()"))
+                            if not isCompletestate:
+                                eval(get_xpath_text(s_point[k], "./@onclick").replace(";", ""))
+                            else:
+                                logger.info("\t\t\t\t ~~~~>执行结果: %s", "已完成")
+
                 else:
-                    s_point = get_xpath_text(s_sectionwrap[j], "./div[@class='s_point']", index=-1)
+                    s_point = get_xpath_text(s_sectionwrap[j], "./div[contains(@class, 's_point')]", index=-1)
                     for k in range(len(s_point)):
-                        logger.info("\t\t\t %s", get_xpath_text(s_point[k], "./div[@class='s_pointti']/text()"))
-                        eval(get_xpath_text(s_point[k], "./@onclick").replace(";", ""))
+                        isCompletestate = int(get_xpath_text(s_point[k], "./@completestate")) == 1
+                        logger.info("\t\t\t %s",
+                                    get_xpath_text(s_point[k], "./div[contains(@class, 's_pointti')]/text()"))
+                        if not isCompletestate:
+                            eval(get_xpath_text(s_point[k], "./@onclick").replace(";", ""))
+                        else:
+                            logger.info("\t\t\t\t ~~~~>执行结果: %s", "已完成")
