@@ -18,8 +18,7 @@
 
 ## 🎄 公告 🎄
 **重要声明：该项目仅供用于学习目的，鼓励学生更高效地管理和完成在线课程，严禁将其用于盈利目的。**
-> - 🎉 之前出现的 **[网关扫码](http://u6e.cn/dnDP0)** 提供教程学习 *
-    *[点击前往>>>](https://www.52pojie.cn/thread-1713942-1-1.html)**
+> - 🎉 之前出现的 **[网关扫码](http://u6e.cn/dnDP0)** 提供教程学习 **[点击前往>>>](https://www.52pojie.cn/thread-1713942-1-1.html)**
 > - 📢 直接运行请前往下载已打包版本 **[点击前往>>>](https://github.com/11273/mooc-work-answer/releases)**
 > - 📣 讨论请前往 Discussions **[点击前往>>>](https://github.com/11273/mooc-work-answer/discussions)**
 > - 📣 提交问题请前往 Issues **[点击前往>>>](https://github.com/11273/mooc-work-answer/issues)**
@@ -28,10 +27,12 @@
 
 ## 下载
 
-- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases)
+- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.5)
 - 历史版本下载[请前往>>>](https://github.com/11273/mooc-work-answer/releases)
 
 ## 更新状态
+
+- 2023/11/19: 视频非法请求调整
 
 - 2023/9/3: 部分错误调整（目前视频出现“非法请求”需等待解决）
 

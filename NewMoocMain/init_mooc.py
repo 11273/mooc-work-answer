@@ -5,12 +5,13 @@
 # @File : init_mooc.py
 # @Software: PyCharm
 import base64
+import datetime
 import json
 import random
 import time
 
 import requests
-from lxml import etree
+from lxml import etree, html
 
 from MoocMain.log import Logger
 
@@ -24,6 +25,15 @@ user = None
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
 }
+
+
+def time_to_seconds(f):
+    b = f.split(":")
+    d = int(b[0])
+    a = int(b[1])
+    c = int(b[2])
+    e = d * 3600 + a * 60 + c
+    return e
 
 
 def auth(session, username, password):
@@ -133,10 +143,10 @@ def learning_time_save_course_item_learn_record(session, course_id, item_id):
     return post.json()
 
 
-def learning_time_save_video_learn_time_long_record(session, study_record):
+def learning_time_save_video_learn_time_long_record(session, study_record, limit_id):
     params = {
         "studyRecord": study_record,
-        # "limitId": limit_id,
+        "limitId": limit_id,
     }
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveVideoLearnDetailRecord.action"
     post = session.post(url=url, params=params, headers=HEADERS)
@@ -145,10 +155,10 @@ def learning_time_save_video_learn_time_long_record(session, study_record):
     return post.json()
 
 
-def learning_time_save_audio_learn_detail_record(session, study_record):
+def learning_time_save_audio_learn_detail_record(session, study_record, limit_id):
     params = {
         "studyRecord": study_record,
-        # "limitId": limit_id,
+        "limitId": limit_id,
     }
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveAudioLearnDetailRecord.action"
     post = session.post(url=url, params=params, headers=HEADERS)
@@ -180,11 +190,11 @@ def learning_time_query_learning_time(session, course_id):
     return post.json()
 
 
-def learning_time_save_learning_time(session, course_id, study_time):
+def learning_time_save_learning_time(session, course_id, limit_id):
     params = {
         "courseId": course_id,
-        "studyTime": study_time,
-        # "limitId": limit_id,
+        "studyTime": 300,
+        "limitId": limit_id,
     }
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveLearningTime.action"
     post = session.get(url=url, params=params, headers=HEADERS)
@@ -215,8 +225,8 @@ def course_topic_action(session, course_id, item_id, content):
         url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
         get_html = session.get(url=url, params=params, headers=HEADERS)
         html = etree.HTML(get_html.text)
-        current_main_id = html.xpath('//input[@id="current_main_id"]/@value')
-        current_user_id = html.xpath('//input[@id="current_user_id"]/@value')
+        current_main_id = html.xpath('//input[@id="current_main_id"]/@value')[0]
+        current_user_id = html.xpath('//input[@id="current_user_id"]/@value')[0]
         return current_main_id, current_user_id
 
     main_id, create_user_id = get__main_id__create_user_id(session)
@@ -229,6 +239,7 @@ def course_topic_action(session, course_id, item_id, content):
         'courseId': course_id,
         'createUserId': create_user_id,
         'createUserName': user,
+        'replyUserId': create_user_id
     }
     url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
     post = session.post(url=url, data=params, headers=HEADERS)
@@ -236,15 +247,7 @@ def course_topic_action(session, course_id, item_id, content):
     return post.json()
 
 
-def get_aes(session, course_id, item_id, video_total_time, audio=False):
-    def time_to_seconds(f):
-        b = f.split(":")
-        d = int(b[0])
-        a = int(b[1])
-        c = int(b[2])
-        e = d * 3600 + a * 60 + c
-        return e
-
+def get_aes(session, course_id, item_id, video_total_time, audio=False, start_time=0.0, end_time=0.0):
     def get_params(p):
         def format_str(c, a):
             l = ""
@@ -291,12 +294,12 @@ def get_aes(session, course_id, item_id, video_total_time, audio=False):
     t = time_to_seconds(video_total_time) + 0.0
 
     data = {
-        "courseId": course_id,
+        "courseId": course_id + '___',
         "itemId": item_id,
         "videoTotalTime": video_total_time,
-        "startTime": 0,
-        "endTime": t,
-        "studyTimeLong": t,
+        "startTime": start_time,
+        "endTime": end_time,
+        "studyTimeLong": end_time - start_time,
     }
     learning_time_save_learning_time(session, course_id, t)
     logger.debug(data)
@@ -311,45 +314,66 @@ def get_aes(session, course_id, item_id, video_total_time, audio=False):
 
 
 def openLearnResItem(id, type, w=None, c=None):
-    query_course_item_info = learning_time_query_course_item_info(session, id)
-    # item_info_item_title = query_course_item_info['item']['title']
-    # info_item_column_name = query_course_item_info['item']['columnName']
-    # logger.info("\t\t\t\t [%s]: %s", info_item_column_name, item_info_item_title)
-    course_id = query_course_item_info['item']['courseId']
-    item_id = query_course_item_info['item']['id']
-    # time_save_learning_time = learning_time_save_learning_time(session, course_id, item_id)
-    # print(time_save_learning_time)
-    if type == "video" or type == 'courseware':
-        # 查询视频总时长
-        video_resources = query_video_resources(session, id)
-        data_video_time = video_resources['data']['videoTime']
-        if not data_video_time:
-            return
-        # logger.debug(video_resources)
-        video_learn_record_detail(session, course_id, item_id, data_video_time)
-        logger.debug(video_resources)
-        aes = get_aes(session, course_id, item_id, data_video_time)
-        learn_time_long_record = learning_time_save_video_learn_time_long_record(session, aes)
-        logger.info("\t\t\t\t ~~~~>执行结果: %s", learn_time_long_record['info'])
-    elif type == "topic":
-        # 讨论
-        if topic_content_all is None or topic_content_all == '' or '#' not in topic_content_all:
-            logger.info("--> 没有获取到讨论回复模板，不执行讨论。")
+    try:
+        query_course_item_info = learning_time_query_course_item_info(session, id)
+        # item_info_item_title = query_course_item_info['item']['title']
+        # info_item_column_name = query_course_item_info['item']['columnName']
+        # logger.info("\t\t\t\t [%s]: %s", info_item_column_name, item_info_item_title)
+        course_id = query_course_item_info['item']['courseId']
+        item_id = query_course_item_info['item']['id']
+        # time_save_learning_time = learning_time_save_learning_time(session, course_id, item_id)
+        # print(time_save_learning_time)
+        if type == "video" or type == 'courseware':
+            # 查询视频总时长
+            video_resources = query_video_resources(session, id)
+            data_video_time = video_resources['data']['videoTime']
+            if not data_video_time:
+                return
+            # logger.debug(video_resources)
+            undo_time = get_undo_time(session, course_id, item_id, data_video_time)
+            video_learn_record_detail(session, course_id, item_id, data_video_time)
+            logger.debug(video_resources)
+            data_video_time_seconds = time_to_seconds(data_video_time)
+            space = 10
+            start_time = int(data_video_time_seconds - undo_time)
+            end_time = int(start_time + space)
+            for untime in range(0, int(undo_time), space):
+                if end_time > data_video_time_seconds:
+                    end_time = start_time + (data_video_time_seconds % space)
+                    if end_time == start_time:
+                        end_time = data_video_time_seconds
+                learning_time_save_course_item_learn_record(session, course_id, item_id)
+                aes = get_aes(session, course_id, item_id, data_video_time, start_time=start_time, end_time=end_time)
+                learn_time_long_record = learning_time_save_video_learn_time_long_record(session, aes, item_id)
+                logger.info("\t\t\t\t ~~~~>执行结果: %s, 视频总时长: %s, 当前进行时长: %s ~ %s",
+                            learn_time_long_record['info'], data_video_time_seconds, start_time, end_time)
+                start_time = start_time + space
+                end_time = start_time + space
+                time.sleep(space / 2)
+        elif type == "topic":
+            # 讨论
+            if topic_content_all is None or topic_content_all == '' or '#' not in topic_content_all:
+                logger.info("--> 没有获取到讨论回复模板，不执行讨论。")
+            else:
+                topic_content_list = topic_content_all.split('#')[1:]  # 获取井号分隔后的子串列表
+                topic_content = random.choice(topic_content_list)  # 随机选择一个子串
+                action = course_topic_action(session, course_id, item_id, topic_content)
+                logger.info("\t\t\t\t ~~~~>执行结果: %s, 回复内容: %s", action['success'], topic_content)
+        elif type == "audio":
+            # logger.debug(video_resources)
+            audio_time = content_audio(session, course_id, item_id)
+            audio_time_sec = time_to_seconds(audio_time)
+            start_time = 0
+            end_time = audio_time_sec
+            aes = get_aes(session, course_id, item_id, audio_time, audio=True, start_time=start_time, end_time=end_time)
+            learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes, item_id)
+            logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
+                        learn_detail_record['data']['detailRecordResult']['msg'])
         else:
-            topic_content_list = topic_content_all.split('#')[1:]  # 获取井号分隔后的子串列表
-            topic_content = random.choice(topic_content_list)  # 随机选择一个子串
-            action = course_topic_action(session, course_id, item_id, topic_content)
-            logger.info("\t\t\t\t ~~~~>执行结果: %s, 回复内容: %s", action['success'], topic_content)
-    elif type == "audio":
-        # logger.debug(video_resources)
-        audio_time = content_audio(session, course_id, item_id)
-        aes = get_aes(session, course_id, item_id, audio_time, audio=True)
-        learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes)
-        logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
-                    learn_detail_record['data']['detailRecordResult']['msg'])
-    else:
-        course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
-        logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
+            course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
+            logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
+    except Exception as e:
+        logger.exception(e)
 
 
 def load_mooc(session, token):
@@ -362,9 +386,30 @@ def get_xpath_text(dom, xpath, index=0):
     return dom.xpath(xpath)[index]
 
 
-def run(username, password, topic_content):
+def get_undo_time(session, courseId, itemId, videoTotalTime):
+    url = 'https://course.icve.com.cn/learnspace/learn/learn/templateeight/include/video_learn_record_detail.action'
+    params = f'params.courseId={courseId}&params.itemId={itemId}&params.videoTotalTime={videoTotalTime}'
+    html_content = session.post(url, params=params, headers=HEADERS).text
+    tree = html.fromstring(html_content)
+    undo_divs = tree.xpath("//div[@class='trace_undo']")
+    total_width = 100.0
+    total_undo_width = 0.0
+    for div in undo_divs:
+        style = div.get("style")
+        widthVal = float(style.split("width:")[1].split("%")[0])
+        total_undo_width += widthVal
+    remaining_percentage = total_undo_width / total_width
+    time_obj = datetime.datetime.strptime(videoTotalTime, "%H:%M:%S")
+    total_time_seconds = time_obj.hour * 3600 + time_obj.minute * 60 + time_obj.second
+    return total_time_seconds * remaining_percentage
+
+
+def run(username, password, topic_content, jump_content):
     global topic_content_all
     global user
+    jump_list = []
+    if jump_content is not None and '#' in jump_content:
+        jump_list = jump_content.split('#')[1:]
     topic_content_all = topic_content
     user = username
     token = auth(session, username, password)
@@ -381,6 +426,9 @@ def run(username, password, topic_content):
         course_id = course[6]
         # learning_time = learning_time_query_learning_time(session, course_id)
         logger.info("【%s】 - %s %s %s", course[0], course[1], course[2], course[3])
+        if any(s in course[0] for s in jump_list):
+            logger.info("\t匹配到过滤条件 - 跳过", course[0])
+            continue
         # 进入课程
         sign_learn(session, course_id)
         html_page_course = courseware_index(session, course_id)

@@ -1,7 +1,10 @@
 aiohttp==3.8.3
-lxml==4.5.1
-numpy==1.21.6
+lxml~=4.9.3
+numpy~=1.24.4
 opencv_python_headless==4.6.0.66
-Pillow==9.4.0
+Pillow~=10.0.0
 pycryptodome==3.17
-requests==2.24.0
+requests~=2.31.0
+
+m3u8~=3.6.0
+opencv-python~=4.3.0.36
