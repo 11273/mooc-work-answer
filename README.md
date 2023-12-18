@@ -31,7 +31,7 @@
 
 ## 下载
 
-- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.5)
+- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.6)
 - 历史版本下载[请前往>>>](https://github.com/11273/mooc-work-answer/releases)
 
 ## 更新状态
@@ -115,7 +115,7 @@
 
 ⚠️ 如使用本项目代码造成侵权与作者无关
 
-[![Stargazers over time](https://starchart.cc/11273/mooc-work-answer.svg)](https://starchart.cc/11273/mooc-work-answer)
+[![Stargazers over time](https://starchart.cc/11273/mooc-work-answer.svg)](https://github.com/11273/mooc-work-answer)
 
 ## 效果展示 (随着版本迭代，实际输出内容可能有所不同，请以最新版本为准)
 

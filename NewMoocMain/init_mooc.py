@@ -334,7 +334,7 @@ def openLearnResItem(id, type, w=None, c=None):
             video_learn_record_detail(session, course_id, item_id, data_video_time)
             logger.debug(video_resources)
             data_video_time_seconds = time_to_seconds(data_video_time)
-            space = 10
+            space = 120
             start_time = int(data_video_time_seconds - undo_time)
             end_time = int(start_time + space)
             for untime in range(0, int(undo_time), space):
