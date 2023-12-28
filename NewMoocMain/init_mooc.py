@@ -152,6 +152,9 @@ def learning_time_save_video_learn_time_long_record(session, study_record, limit
     post = session.post(url=url, params=params, headers=HEADERS)
     # 同一个视频同时请求两次需要间隔60S
     logger.debug(post.text)
+    if "请每5分钟提交一次学习数据" in post.text:
+        time.sleep(160)
+        return learning_time_save_video_learn_time_long_record(session, study_record, limit_id)
     return post.json()
 
 
@@ -199,6 +202,11 @@ def learning_time_save_learning_time(session, course_id, limit_id):
     url = "https://course.icve.com.cn/learnspace/course/study/learningTime_saveLearningTime.action"
     post = session.get(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
+    if '<script>' in post.text:
+        acw_sc__v2 = input(
+            'acw_sc__v2(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ACW_SC__V2.md): ')
+        session.cookies.set('acw_sc__v2', acw_sc__v2)
+        return learning_time_save_learning_time(session, course_id, limit_id)
     return post.json()
 
 
@@ -211,6 +219,13 @@ def video_learn_record_detail(session, course_id, item_id, video_total_time):
     url = "https://course.icve.com.cn/learnspace/learn/learn/templateeight/include/video_learn_record_detail.action"
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
+    if '<script>' in post.text:
+        acw_sc__v2 = input(
+            'acw_sc__v2(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ACW_SC__V2.md): ')
+        session.cookies.set('acw_sc__v2', acw_sc__v2)
+        logger.info("输入成功，进行延迟120s，请勿操作...")
+        time.sleep(120)
+        return video_learn_record_detail(session, course_id, item_id, video_total_time)
     return post.text
 
 
@@ -315,6 +330,7 @@ def get_aes(session, course_id, item_id, video_total_time, audio=False, start_ti
 
 def openLearnResItem(id, type, w=None, c=None):
     try:
+        time.sleep(6)
         query_course_item_info = learning_time_query_course_item_info(session, id)
         # item_info_item_title = query_course_item_info['item']['title']
         # info_item_column_name = query_course_item_info['item']['columnName']
