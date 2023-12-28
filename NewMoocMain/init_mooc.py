@@ -153,6 +153,7 @@ def learning_time_save_video_learn_time_long_record(session, study_record, limit
     # 同一个视频同时请求两次需要间隔60S
     logger.debug(post.text)
     if "请每5分钟提交一次学习数据" in post.text:
+        logger.info("出现 请每5分钟提交一次学习数据，进行延迟160s，请勿操作...")
         time.sleep(160)
         return learning_time_save_video_learn_time_long_record(session, study_record, limit_id)
     return post.json()
@@ -206,6 +207,8 @@ def learning_time_save_learning_time(session, course_id, limit_id):
         acw_sc__v2 = input(
             'acw_sc__v2(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ACW_SC__V2.md): ')
         session.cookies.set('acw_sc__v2', acw_sc__v2)
+        logger.info("输入成功，进行延迟120s，请勿操作...")
+        time.sleep(120)
         return learning_time_save_learning_time(session, course_id, limit_id)
     return post.json()
 
