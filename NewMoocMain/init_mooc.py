@@ -14,6 +14,7 @@ import requests
 from lxml import etree, html
 
 from MoocMain.log import Logger
+from NewMoocMain.acwv2 import get_acw_sc__v2
 
 logger = Logger(__name__).get_log()
 
@@ -204,11 +205,10 @@ def learning_time_save_learning_time(session, course_id, limit_id):
     post = session.get(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
     if '<script>' in post.text:
-        acw_sc__v2 = input(
-            'acw_sc__v2(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ACW_SC__V2.md): ')
+        acw_sc__v2 = get_acw_sc__v2(post.text)
         session.cookies.set('acw_sc__v2', acw_sc__v2)
-        logger.info("输入成功，进行延迟120s，请勿操作...")
-        time.sleep(120)
+        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟120s，请勿操作...", acw_sc__v2)
+        time.sleep(60)
         return learning_time_save_learning_time(session, course_id, limit_id)
     return post.json()
 
@@ -223,11 +223,10 @@ def video_learn_record_detail(session, course_id, item_id, video_total_time):
     post = session.post(url=url, params=params, headers=HEADERS)
     logger.debug(post.text)
     if '<script>' in post.text:
-        acw_sc__v2 = input(
-            'acw_sc__v2(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ACW_SC__V2.md): ')
+        acw_sc__v2 = get_acw_sc__v2(post.text)
         session.cookies.set('acw_sc__v2', acw_sc__v2)
-        logger.info("输入成功，进行延迟120s，请勿操作...")
-        time.sleep(120)
+        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟120s，请勿操作...", acw_sc__v2)
+        time.sleep(60)
         return video_learn_record_detail(session, course_id, item_id, video_total_time)
     return post.text
 
@@ -388,6 +387,8 @@ def openLearnResItem(id, type, w=None, c=None):
             learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes, item_id)
             logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
                         learn_detail_record['data']['detailRecordResult']['msg'])
+        elif type == "exam":
+            logger.info("\t\t\t\t ~~~~>执行结果: 作业考试跳过。")
         else:
             course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
             logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
