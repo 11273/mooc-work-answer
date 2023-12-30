@@ -14,7 +14,7 @@ from MoocMain.log import Logger
 logger = Logger(__name__).get_log()
 
 logger.info('=' * 110)
-logger.info('%s【v2.1.7 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
+logger.info('%s【v2.1.8 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
 logger.info('=' * 110)
 
 # ****************************************** 配置 ******************************************
