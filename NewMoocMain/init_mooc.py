@@ -369,9 +369,10 @@ def openLearnResItem(id, type, w=None, c=None):
             end_time = int(start_time + space)
             for untime in range(0, int(undo_time), space):
                 if end_time > data_video_time_seconds:
-                    end_time = start_time + (data_video_time_seconds % space)
-                    if end_time == start_time:
-                        end_time = data_video_time_seconds
+                    end_time = data_video_time_seconds
+                    # end_time = start_time + (data_video_time_seconds % space)
+                    # if end_time == start_time:
+                    #     end_time = data_video_time_seconds
                 learning_time_save_course_item_learn_record(session, course_id, item_id)
                 aes = get_aes(session, course_id, item_id, data_video_time, start_time=start_time, end_time=end_time)
                 learn_time_long_record = learning_time_save_video_learn_time_long_record(session, aes, item_id)
