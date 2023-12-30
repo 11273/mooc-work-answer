@@ -18,6 +18,9 @@ class Logger:
         # 控制台
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            '[%(asctime)s] :: %(message)s')
+        ch.setFormatter(formatter)
         self.logger.addHandler(ch)
         # 文件
         formatter = logging.Formatter(

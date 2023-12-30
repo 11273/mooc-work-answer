@@ -207,7 +207,7 @@ def learning_time_save_learning_time(session, course_id, limit_id):
     if '<script>' in post.text:
         acw_sc__v2 = get_acw_sc__v2(post.text)
         session.cookies.set('acw_sc__v2', acw_sc__v2)
-        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟120s，请勿操作...", acw_sc__v2)
+        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟，请勿操作...", acw_sc__v2)
         time.sleep(60)
         return learning_time_save_learning_time(session, course_id, limit_id)
     return post.json()
@@ -225,7 +225,7 @@ def video_learn_record_detail(session, course_id, item_id, video_total_time):
     if '<script>' in post.text:
         acw_sc__v2 = get_acw_sc__v2(post.text)
         session.cookies.set('acw_sc__v2', acw_sc__v2)
-        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟120s，请勿操作...", acw_sc__v2)
+        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟，请勿操作...", acw_sc__v2)
         time.sleep(60)
         return video_learn_record_detail(session, course_id, item_id, video_total_time)
     return post.text
@@ -241,6 +241,12 @@ def course_topic_action(session, course_id, item_id, content):
         }
         url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
         get_html = session.get(url=url, params=params, headers=HEADERS)
+        if '<script>' in get_html.text:
+            acw_sc__v2 = get_acw_sc__v2(get_html.text)
+            session.cookies.set('acw_sc__v2', acw_sc__v2)
+            logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟，请勿操作...", acw_sc__v2)
+            time.sleep(10)
+            return get__main_id__create_user_id(session)
         html = etree.HTML(get_html.text)
         current_main_id = html.xpath('//input[@id="current_main_id"]/@value')[0]
         current_user_id = html.xpath('//input[@id="current_user_id"]/@value')[0]
@@ -261,6 +267,12 @@ def course_topic_action(session, course_id, item_id, content):
     url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
     post = session.post(url=url, data=params, headers=HEADERS)
     logger.debug(post.text)
+    if '<script>' in post.text:
+        acw_sc__v2 = get_acw_sc__v2(post.text)
+        session.cookies.set('acw_sc__v2', acw_sc__v2)
+        logger.info("\t\t\t\t\t 自动输入成功: %s，进行延迟，请勿操作...", acw_sc__v2)
+        time.sleep(10)
+        return course_topic_action(session, course_id, item_id, content)
     return post.json()
 
 
@@ -332,7 +344,6 @@ def get_aes(session, course_id, item_id, video_total_time, audio=False, start_ti
 
 def openLearnResItem(id, type, w=None, c=None):
     try:
-        time.sleep(6)
         query_course_item_info = learning_time_query_course_item_info(session, id)
         # item_info_item_title = query_course_item_info['item']['title']
         # info_item_column_name = query_course_item_info['item']['columnName']
@@ -342,6 +353,7 @@ def openLearnResItem(id, type, w=None, c=None):
         # time_save_learning_time = learning_time_save_learning_time(session, course_id, item_id)
         # print(time_save_learning_time)
         if type == "video" or type == 'courseware':
+            time.sleep(10)
             # 查询视频总时长
             video_resources = query_video_resources(session, id)
             data_video_time = video_resources['data']['videoTime']
@@ -369,6 +381,7 @@ def openLearnResItem(id, type, w=None, c=None):
                 end_time = start_time + space
                 time.sleep(space / 2)
         elif type == "topic":
+            time.sleep(10)
             # 讨论
             if topic_content_all is None or topic_content_all == '' or '#' not in topic_content_all:
                 logger.info("--> 没有获取到讨论回复模板，不执行讨论。")
@@ -383,6 +396,7 @@ def openLearnResItem(id, type, w=None, c=None):
             audio_time_sec = time_to_seconds(audio_time)
             start_time = 0
             end_time = audio_time_sec
+            time.sleep(audio_time_sec / 1.5 + 10)
             aes = get_aes(session, course_id, item_id, audio_time, audio=True, start_time=start_time, end_time=end_time)
             learn_detail_record = learning_time_save_audio_learn_detail_record(session, aes, item_id)
             logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
@@ -390,6 +404,7 @@ def openLearnResItem(id, type, w=None, c=None):
         elif type == "exam":
             logger.info("\t\t\t\t ~~~~>执行结果: 作业考试跳过。")
         else:
+            time.sleep(10)
             course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
             logger.info("\t\t\t\t ~~~~>执行结果: %s", course_item_learn_record['errorMsg'])
     except Exception as e:
