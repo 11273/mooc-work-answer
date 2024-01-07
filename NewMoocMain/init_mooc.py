@@ -67,7 +67,24 @@ def is_login(session):
     return post.text
 
 
-def student_mooc_select_mooc_course(session, token):
+def student_mooc_select_mooc_course(session, token, type_value):
+    if type_value == 3:
+        url = "https://user.icve.com.cn/learning/u/userDefinedSql/getBySqlCode.json"
+        data = {
+            'data': 'info',
+            'page.searchItem.queryId': 'getNewStuCourseInfoById',
+            'page.searchItem.keyname': '',
+            'page.curPage': 1,
+            'page.pageSize': 500
+        }
+        session_post = session.post(url=url, data=data, headers=HEADERS)
+        post_json = session_post.json()
+        res_list = []
+        for i in post_json['page']['items']:
+            for j in i['info']:
+                res_list.append([j['ext1'], j['ext2'], j['ext3'], '', '', '', j['ext9'], '', '', '', '', '',
+                                 '', '', '', j['ext4']])
+        return {"data": res_list}
     params = f"token={token}&siteCode=zhzj&curPage=1&pageSize=9999&selectType=1"
     url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
     post = session.post(url=url, params=params, headers=HEADERS)
@@ -75,7 +92,7 @@ def student_mooc_select_mooc_course(session, token):
     try:
         post_json = post.json()
     except Exception:
-        return student_mooc_select_mooc_course(session, token)
+        return student_mooc_select_mooc_course(session, token, type_value)
     if post_json is None or 'data' not in post_json or post_json['data'] is None:
         logger.info('获取课程列表失败或获取为空！')
         input('程序退出')
@@ -83,22 +100,26 @@ def student_mooc_select_mooc_course(session, token):
     return post_json
 
 
-def sign_learn(session, course_id):
-    url = "https://mooc.icve.com.cn/patch/zhzj/dataCheck.action"
+def sign_learn(session, course_id, type_value):
+    if type_value == 3:
+        url = "https://user.icve.com.cn/patch/zhzj/dataCheck.action"
+    else:
+        url = "https://mooc.icve.com.cn/patch/zhzj/dataCheck.action"
     data = {
         'courseId': course_id,
         'checkType': 1,
         'sign': 0,
         'template': 'blue'
     }
-    result = session.post(url, data=data, headers=HEADERS)
+    session.post(url, params=data, headers=HEADERS)
+    result = session.post(url, params=data, headers=HEADERS)
     result_json = result.json()
     post = session.get(url=result_json['data'], headers=HEADERS)
     logger.debug(post.text)
     if 'id="parm_0"' in post.text or 'window.top.location = "/";' in post.text:
         alicfw = input('填入alicfw(查看: https://github.com/11273/mooc-work-answer/blob/main/README_ALICFW.md): ')
         session.cookies.set('alicfw', alicfw)
-        return sign_learn(session, course_id)
+        return sign_learn(session, course_id, type_value)
 
 
 def courseware_index(session, course_id):
@@ -440,7 +461,7 @@ def get_undo_time(session, courseId, itemId, videoTotalTime):
     return total_time_seconds * remaining_percentage
 
 
-def run(username, password, topic_content, jump_content):
+def run(username, password, topic_content, jump_content, type_value):
     global topic_content_all
     global user
     jump_list = []
@@ -451,7 +472,7 @@ def run(username, password, topic_content, jump_content):
     token = auth(session, username, password)
     load_mooc(session, token)
     logger.info(f"\t>>> 课程获取中...")
-    mooc_select_mooc_course = student_mooc_select_mooc_course(session, token)
+    mooc_select_mooc_course = student_mooc_select_mooc_course(session, token, type_value)
     for mooc_course_item in mooc_select_mooc_course['data']:
         logger.info(f"\t\t* {mooc_course_item[0]} - {mooc_course_item[1]} - {mooc_course_item[15]}")
     logger.info(f"\t>>> 课程获取完毕! \n\n")
@@ -466,7 +487,7 @@ def run(username, password, topic_content, jump_content):
             logger.info("\t匹配到过滤条件 - 跳过", course[0])
             continue
         # 进入课程
-        sign_learn(session, course_id)
+        sign_learn(session, course_id, type_value)
         html_page_course = courseware_index(session, course_id)
         # logger.debug(html_page_course)
         mooc_html = etree.HTML(html_page_course)

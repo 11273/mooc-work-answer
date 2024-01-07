@@ -14,7 +14,7 @@ from MoocMain.log import Logger
 logger = Logger(__name__).get_log()
 
 logger.info('=' * 110)
-logger.info('%s【v2.1.8 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
+logger.info('%s【v2.1.9 】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
 logger.info('=' * 110)
 
 # ****************************************** 配置 ******************************************
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     time.sleep(1)
     print('\n')
     # 账号1(大号)
-    old = int(input('新旧版账号密码部分不互通: 1.旧版 or 2.新版: ')) or 1
+    old = int(input('新旧版账号密码部分不互通: 1.旧版 or 2.新版 or 3.课堂版: ')) or 1
     try:
         if old == 1:
             logger.info('\n')
@@ -126,7 +126,7 @@ if __name__ == '__main__':
             if jump == 1:
                 print('\t请输入跳过课程名(模糊匹配), 例如\n\t\t输入多个文本随机井号后面的: #设计#思想道德#技术\n\t\t输入单个将固定跳过一个课程: #思想')
                 jump_content = input('请输入需要跳过的课程关键字(#电商): ') or ''
-            NewMoocInit.run(username=username1, password=password1, topic_content=topic_content, jump_content=jump_content)
+            NewMoocInit.run(username=username1, password=password1, topic_content=topic_content, jump_content=jump_content, type_value=old)
         print("本次程序运行完成，正常结束。")
     except Exception as e:
         logger.exception(e)
