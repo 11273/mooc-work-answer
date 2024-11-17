@@ -41,10 +41,12 @@
 
 ## 下载
 
-- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.9)
+- 最新版下载 [Download exe 绿色运行版 >>>](https://github.com/11273/mooc-work-answer/releases/tag/v2.1.10)
 - 历史版本下载[请前往>>>](https://github.com/11273/mooc-work-answer/releases)
 
 ## 更新状态
+
+- 2024/11/17: 评论功能、无法获取课程修复
 
 - 2023/11/19: 视频非法请求调整
 
