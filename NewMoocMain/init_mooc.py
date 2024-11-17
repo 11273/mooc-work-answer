@@ -8,6 +8,7 @@ import base64
 import datetime
 import json
 import random
+import re
 import time
 
 import requests
@@ -85,19 +86,32 @@ def student_mooc_select_mooc_course(session, token, type_value):
                 res_list.append([j['ext1'], j['ext2'], j['ext3'], '', '', '', j['ext9'], '', '', '', '', '',
                                  '', '', '', j['ext4']])
         return {"data": res_list}
-    params = f"token={token}&siteCode=zhzj&curPage=1&pageSize=9999&selectType=1"
-    url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
-    post = session.post(url=url, params=params, headers=HEADERS)
-    logger.debug(post.text)
-    try:
-        post_json = post.json()
-    except Exception:
-        return student_mooc_select_mooc_course(session, token, type_value)
-    if post_json is None or 'data' not in post_json or post_json['data'] is None:
-        logger.info('获取课程列表失败或获取为空！')
-        input('程序退出')
-        exit(0)
-    return post_json
+
+    all_data = []
+    page_number = 1
+    total_pages = 1
+
+    while page_number <= total_pages:
+
+        params = f"token={token}&siteCode=zhzj&curPage={page_number}&pageSize=6&selectType=1"
+        url = "https://mooc.icve.com.cn/patch/zhzj/studentMooc_selectMoocCourse.action"
+        response = session.post(url=url, params=params, headers=HEADERS)
+
+        try:
+            post_json = response.json()
+        except Exception as e:
+            return student_mooc_select_mooc_course(session, token, type_value)
+
+        if not post_json or 'data' not in post_json or post_json['data'] is None:
+            break
+
+        logger.info(f"\t>>> 课程获取第 {page_number} 页完成")
+        all_data.extend(post_json['data'])
+        total_pages = int(post_json.get('totalPage', 1))
+        page_number += 1
+        time.sleep(1.5)
+
+    return {"data": all_data}
 
 
 def sign_learn(session, course_id, type_value):
@@ -175,7 +189,7 @@ def learning_time_save_video_learn_time_long_record(session, study_record, limit
     # 同一个视频同时请求两次需要间隔60S
     logger.debug(post.text)
     if "请每5分钟提交一次学习数据" in post.text:
-        logger.info("出现 请每5分钟提交一次学习数据，进行延迟160s，请勿操作...")
+        logger.info("\t\t\t\t !!!提交过快，每5分钟提交一次学习数据，进行延迟160s，请勿操作...")
         time.sleep(160)
         return learning_time_save_video_learn_time_long_record(session, study_record, limit_id)
     return post.json()
@@ -271,10 +285,16 @@ def course_topic_action(session, course_id, item_id, content):
         html = etree.HTML(get_html.text)
         current_main_id = html.xpath('//input[@id="current_main_id"]/@value')[0]
         current_user_id = html.xpath('//input[@id="current_user_id"]/@value')[0]
-        return current_main_id, current_user_id
+        check_and_save_reply = html.xpath('//a[@id="editor_area"]/@onclick')[0]
+        pattern = r"'([^']*)'"
+        current_reply_user_id = re.findall(pattern, check_and_save_reply)[2]
+        current_reply_user_name = re.findall(pattern, check_and_save_reply)[3]
+        return current_main_id, current_user_id, current_reply_user_id, current_reply_user_name
 
-    main_id, create_user_id = get__main_id__create_user_id(session)
+    main_id, create_user_id, reply_user_id, reply_user_name = get__main_id__create_user_id(session)
+    session.get('https://course.icve.com.cn/taolun/authimg', headers=HEADERS)
     params = {
+        'currentId': main_id,
         'action': 'reply',
         'parentId': main_id,
         'mainId': main_id,
@@ -283,7 +303,8 @@ def course_topic_action(session, course_id, item_id, content):
         'courseId': course_id,
         'createUserId': create_user_id,
         'createUserName': user,
-        'replyUserId': create_user_id
+        'replyUserId': reply_user_id,
+        'replyUserName': reply_user_name
     }
     url = "https://course.icve.com.cn/taolun/learn/courseTopicAction.action"
     post = session.post(url=url, data=params, headers=HEADERS)
@@ -462,6 +483,18 @@ def get_undo_time(session, courseId, itemId, videoTotalTime):
 
 
 def run(username, password, topic_content, jump_content, type_value):
+    separator = "*" * 40
+    logger.info(separator)
+    logger.info(f"运行信息")
+    logger.info(separator)
+    logger.info(f"* 登录账号: {username}")
+    logger.info(f"* 评论配置: {topic_content if topic_content is not None else ''}")
+    logger.info(f"* 跳过课程: {jump_content if jump_content is not None else ''}")
+    logger.info(f"* 课程类型: {type_value}")
+    logger.info(separator)
+    logger.info("开始执行")
+    logger.info(separator)
+
     global topic_content_all
     global user
     jump_list = []
@@ -473,6 +506,7 @@ def run(username, password, topic_content, jump_content, type_value):
     load_mooc(session, token)
     logger.info(f"\t>>> 课程获取中...")
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token, type_value)
+    logger.info(f"\t>>> ↓ ↓ ↓ 获取到以下课程 ↓ ↓ ↓")
     for mooc_course_item in mooc_select_mooc_course['data']:
         logger.info(f"\t\t* {mooc_course_item[0]} - {mooc_course_item[1]} - {mooc_course_item[15]}")
     logger.info(f"\t>>> 课程获取完毕! \n\n")
@@ -484,7 +518,7 @@ def run(username, password, topic_content, jump_content, type_value):
         # learning_time = learning_time_query_learning_time(session, course_id)
         logger.info("【%s】 - %s %s %s", course[0], course[1], course[2], course[3])
         if any(s in course[0] for s in jump_list):
-            logger.info("\t匹配到过滤条件 - 跳过", course[0])
+            logger.info("\t匹配到过滤条件: %s - 跳过", course[0])
             continue
         # 进入课程
         sign_learn(session, course_id, type_value)
