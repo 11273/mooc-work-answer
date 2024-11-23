@@ -10,12 +10,21 @@ import time
 import MoocMain.initMooc as MoocInit
 import NewMoocMain.init_mooc as NewMoocInit
 from MoocMain.log import Logger
+from update import check_for_updates
 
 logger = Logger(__name__).get_log()
 
-logger.info('=' * 110)
-logger.info('%s【${TAG_NAME}】 程序运行!开源支持 By https://github.com/11273/mooc-work-answer %s', '=' * 20, '=' * 20)
-logger.info('=' * 110)
+APP_VERSION = 'dev' if 'TAG_NAME' in '${TAG_NAME}' else '${TAG_NAME}'
+
+border = '*' * 80
+logger.info(border)
+logger.info(f'应用程序启动，版本: {APP_VERSION}')
+logger.info('开源支持: https://github.com/11273/mooc-work-answer')
+logger.info(border)
+
+# ***************************************** 检查更新 ***************************************
+
+check_for_updates(APP_VERSION)
 
 # ****************************************** 配置 ******************************************
 
@@ -119,14 +128,17 @@ if __name__ == '__main__':
             topic = int(input('是否自动讨论回复 1.是 or 2.否: ') or 2)
             topic_content = None
             if topic == 1:
-                print('\t请输入讨论回复内容,回复的不包括井号(默认随机), 例如\n\t\t输入多个文本随机井号后面的: #好#加油#积极响应\n\t\t输入单个将固定回复统一内容: #好')
+                print(
+                    '\t请输入讨论回复内容,回复的不包括井号(默认随机), 例如\n\t\t输入多个文本随机井号后面的: #好#加油#积极响应\n\t\t输入单个将固定回复统一内容: #好')
                 topic_content = input('请输入回车默认(#好#加油#积极响应): ') or '#好#加油#积极响应'
             jump = int(input('是否有需要跳过的课程 1.是 or 2.否: ') or 2)
             jump_content = None
             if jump == 1:
-                print('\t请输入跳过课程名(模糊匹配), 例如\n\t\t输入多个文本随机井号后面的: #设计#思想道德#技术\n\t\t输入单个将固定跳过一个课程: #思想')
+                print(
+                    '\t请输入跳过课程名(模糊匹配), 例如\n\t\t输入多个文本随机井号后面的: #设计#思想道德#技术\n\t\t输入单个将固定跳过一个课程: #思想')
                 jump_content = input('请输入需要跳过的课程关键字(#电商): ') or ''
-            NewMoocInit.run(username=username1, password=password1, topic_content=topic_content, jump_content=jump_content, type_value=old)
+            NewMoocInit.run(username=username1, password=password1, topic_content=topic_content,
+                            jump_content=jump_content, type_value=old)
         print("本次程序运行完成，正常结束。")
     except Exception as e:
         logger.exception(e)
