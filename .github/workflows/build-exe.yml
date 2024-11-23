@@ -1,0 +1,112 @@
+name: EXE Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: 获取当前 Git 标签
+        run: |
+          echo "TAG_NAME=${{github.ref_name}}" >> $env:GITHUB_ENV
+
+      - name: 获取上一个 Git 标签
+        id: previous_tag
+        run: echo "PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)" >> $env:GITHUB_ENV
+
+      - name: 获取提交日志
+        id: changelog
+        shell: bash
+        run: |
+          badge1="[![downloads](https://img.shields.io/github/downloads/11273/mooc-work-answer/${{ env.TAG_NAME }}/total)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
+          badge2="[![visitors](https://vbr.nathanchung.dev/badge?page_id=mooc-work-answer.${{ env.TAG_NAME }})](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
+          header="## 更新日志"
+      
+          log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s (%an, %ad)" --date=short --no-merges | grep "\[.*\]")
+      
+          changelog="${badge1} ${badge2}\n${header}\n${log}"
+      
+          echo -e "$changelog" > changelog.txt
+
+      - name: 注入环境变量1
+        uses: NicoG60/simple-template-renderer@v1
+        with:
+          input: StartWorkLite.spec
+        env:
+          PYINSTALL_KEY: ${{ secrets.PYINSTALL_KEY }}
+          TAG_NAME: ${{ env.TAG_NAME }}
+
+      - name: 注入环境变量2
+        uses: NicoG60/simple-template-renderer@v1
+        with:
+          input: StartWork.py
+        env:
+          TAG_NAME: ${{ env.TAG_NAME }}
+
+      - name: 查看配置项
+        run: |
+          echo "==================================="
+          echo "PREV_TAG: ${{ env.PREV_TAG }}"
+          echo "==================================="
+          echo "TAG_NAME: ${{ env.TAG_NAME }}"
+          echo "==================================="
+          echo "CHANGELOG:"
+          cat changelog.txt
+
+      - name: 使用 Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.8"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller==4.5
+          pip install wheel
+          pip install tinyaes
+          pip install -r requirements.txt
+
+      - name: 打包 EXE
+        run: pyinstaller StartWorkLite.spec
+
+      - name: 创建 GitHub 发布
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ env.TAG_NAME }}
+          body_path: changelog.txt
+          files: "dist/*"
+          draft: false
+          prerelease: false
+        env:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 更新 README.md
+        run: |
+          sed -i "s|\(\- 最新版下载 \[Download exe 绿色运行版 >>>\]\)([^)]*)|\1(${{ steps.create_release.outputs.url }})|g" README.md
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin main
+          git add README.md
+          git commit -m "Update README.md for ${{ env.TAG_NAME }}"
+
+      - name: 推送更改
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.PAT_TOKEN }}
+          branch: main
