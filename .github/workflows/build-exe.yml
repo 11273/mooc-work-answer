@@ -37,7 +37,7 @@ jobs:
           badge2="[![visitors](https://vbr.nathanchung.dev/badge?page_id=mooc-work-answer.${{ env.TAG_NAME }})](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
           header="## 更新日志"
       
-          log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s (%an, %ad)" --date=short --no-merges | grep "\[.*\]")
+          log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s (%an, %ad)" --date=short --no-merges | grep "^- \[.*\]")
       
           changelog="${badge1} ${badge2}\n${header}\n${log}"
       
