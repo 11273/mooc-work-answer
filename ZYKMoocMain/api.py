@@ -126,6 +126,6 @@ class ZYKMoocApi(BaseAPIClient):
         return self.put(endpoint, data=aes_encrypt_ecb(b"djekiytolkijduey", json_str))
 
     def upload_file_status(self, url_short: str) -> Dict[str, Any]:
-        """获取单个课程详细信息"""
+        """获取课件文件详细信息"""
         endpoint = f"/{url_short}/status"
         return self.post(endpoint, base_url=ZYK_UPLOAD_BASE_URL)
