@@ -134,6 +134,8 @@ class ZYKMoocHandler:
             if file_type == "mp3":
                 mp3_duration = get_mp3_duration(course_content.get('fileUrl'))
                 total_num = int(mp3_duration)
+            if file_type == "zip":
+                total_num = 1
             elif url_short:
                 file_status = self.client.upload_file_status(url_short)
                 file_status_args = file_status.get('args')
