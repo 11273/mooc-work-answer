@@ -5,11 +5,13 @@
 # @Note : 
 # @File : StartWork.py
 # @Software: PyCharm
+import textwrap
 import time
 
 import MoocMain.initMooc as MoocInit
 import NewMoocMain.init_mooc as NewMoocInit
 from MoocMain.log import Logger
+from ZYKMoocMain.main import ZYKMoocHandler
 from update import check_for_updates
 
 logger = Logger(__name__).get_log()
@@ -75,7 +77,7 @@ if __name__ == '__main__':
     time.sleep(1)
     print('\n')
     # 账号1(大号)
-    old = int(input('新旧版账号密码部分不互通: 1.旧版 or 2.新版 or 3.课堂版: ')) or 1
+    old = int(input('新旧版账号密码部分不互通: 1.旧版 or 2.新版 or 3.课堂版 or 4.资源库: ')) or 1
     try:
         if old == 1:
             logger.info('\n')
@@ -121,6 +123,16 @@ if __name__ == '__main__':
                 is_work_exam_type2=is_work_exam_type2,
                 is_work_score=is_work_score,
             )
+        elif old == 4:
+            username = input('请输入账号: ')  # 账号
+            password = input('请输入密码: ')  # 密码
+            jump = int(input('是否有需要跳过的课程 1.是 or 2.否: ') or 2)
+            jump_content = None
+            if jump == 1:
+                print(
+                    '\t请输入跳过课程名(模糊匹配), 例如\n\t\t输入多个文本随机井号后面的: #设计#思想道德#技术\n\t\t输入单个将固定跳过一个课程: #思想')
+                jump_content = input('请输入需要跳过的课程关键字(例：#电商#商务英语): ') or ''
+            ZYKMoocHandler(username, password, jump_content)
         else:
             # 账号1(大号)
             username1 = input('请输入账号: ')  # 账号
@@ -139,8 +151,18 @@ if __name__ == '__main__':
                 jump_content = input('请输入需要跳过的课程关键字(#电商): ') or ''
             NewMoocInit.run(username=username1, password=password1, topic_content=topic_content,
                             jump_content=jump_content, type_value=old)
-        print("本次程序运行完成，正常结束。")
+        logger.info("┃✅本次程序运行完成，正常结束 ✅┃")
+    except KeyboardInterrupt:
+        logger.info(f"┃❌ 用户手动终止程序，正在安全退出...┃")
     except Exception as e:
-        logger.exception(e)
+        logger.exception(f"┃⛔ 发生错误，请检查输入或提交 Github 反馈 ⛔┃ {e} ")
     finally:
-        input("程序结束，如遇错误请重新运行，多次重复错误请提交Github...")
+        # 包裹日志信息
+        message = textwrap.dedent("""
+            ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+            ┃ ✅ 程序结束，如遇错误请重新运行                   
+            ┃ 🔄 多次重复错误请提交 Github 反馈！               
+            ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+        """)
+        logger.info(message)
+        input()

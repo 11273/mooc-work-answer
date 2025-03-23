@@ -7,7 +7,6 @@
 # @Software: PyCharm
 import datetime
 import logging
-from logging.handlers import TimedRotatingFileHandler
 
 
 class Logger:
