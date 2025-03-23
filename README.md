@@ -6,15 +6,15 @@
 [![downloads](https://img.shields.io/github/downloads/11273/mooc-work-answer/total)](https://github.com/11273/mooc-work-answer/releases)
 <!-- [![visitors](https://visitor-badge.glitch.me/badge?page_id=11273.mooc-work-answer)](https://github.com/11273/mooc-work-answer) -->
 
-
-|                             项目                              |                                       适用网站                                       |          功能          |
-| :-----------------------------------------------------------: | :----------------------------------------------------------------------------------: | :--------------------: |
-| [mooc-work-answer](https://github.com/11273/mooc-work-answer) |                                                                                      |                        |
-|                                                               |                    [智慧职教-旧版](https://mooc-old.icve.com.cn)                     | 刷课、测验、考试、作业 |
-|                                                               |                    [智慧职教-新版](https://icve-mooc.icve.com.cn)                    |       刷课、讨论       |
-|                                                               | [智慧职教-课堂版](https://user.icve.com.cn/learning/u/student/teaching/index.action) |       刷课、讨论       |
-|  [zjy-work-answer](https://github.com/11273/zjy-work-answer)  |                                                                                      |                        |
-|                                                               |                    [职教云](https://zjy2.icve.com.cn/study/index)                    |          刷课          |
+|                              项目                               |                                     适用网站                                      |     功能      |
+|:-------------------------------------------------------------:|:-----------------------------------------------------------------------------:|:-----------:|
+| [mooc-work-answer](https://github.com/11273/mooc-work-answer) |                                                                               |             |
+|                                                               |                    [智慧职教-旧版](https://mooc-old.icve.com.cn)                    | 刷课、测验、考试、作业 |
+|                                                               |                   [智慧职教-新版](https://icve-mooc.icve.com.cn)                    |    刷课、讨论    |
+|                                                               | [智慧职教-课堂版](https://user.icve.com.cn/learning/u/student/teaching/index.action) |    刷课、讨论    |
+|                                                               |                     [智慧职教-资源库](https://zyk.icve.com.cn/)                      |     刷课      |
+|  [zjy-work-answer](https://github.com/11273/zjy-work-answer)  |                                                                               |             |
+|                                                               |                  [职教云](https://zjy2.icve.com.cn/study/index)                  |     刷课      |
 
 - **智慧职教 旧版【考试 + 测验 + 作业 + 刷课】+ 新版【刷课】**
   <https://user.icve.com.cn/learning/u/student/teaching/index.action>
@@ -47,15 +47,15 @@
 ## 实现功能
 
 | 版本   | 功能 | 介绍 | 完成 |
-| ------ | :--: | :--: | :--: |
-| 新版 ↓ |      |      |      |
-|        | 刷课 | 完成 |  ✅  |
-|        | 讨论 | 完成 |  ✅  |
-| 旧版 ↓ |      |      |      |
-|        | 刷课 | 完成 |  ✅  |
-|        | 测验 | 完成 |  ✅  |
-|        | 考试 | 完成 |  ✅  |
-|        | 作业 | 完成 |  ✅  |
+|------|:--:|:--:|:--:|
+| 新版 ↓ |    |    |    |
+|      | 刷课 | 完成 | ✅  |
+|      | 讨论 | 完成 | ✅  |
+| 旧版 ↓ |    |    |    |
+|      | 刷课 | 完成 | ✅  |
+|      | 测验 | 完成 | ✅  |
+|      | 考试 | 完成 | ✅  |
+|      | 作业 | 完成 | ✅  |
 
 ## 运行环境
 
