@@ -16,6 +16,7 @@ from lxml import etree, html
 
 from MoocMain.log import Logger
 from NewMoocMain.acwv2 import get_acw_sc__v2
+from NewMoocMain.icve_exam_parser import parse_exam_questions
 
 logger = Logger(__name__).get_log()
 
@@ -23,6 +24,9 @@ session = requests.session()
 
 topic_content_all = None
 user = None
+use_ai_answer = False
+use_auto_submit = False
+ai_exam_handler = None  # AI答题处理器实例
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'
@@ -317,6 +321,72 @@ def course_topic_action(session, course_id, item_id, content):
         return course_topic_action(session, course_id, item_id, content)
     return post.json()
 
+def get_exam_info_by_item_id(session, item_id):
+    ''' 先获取考试id '''
+    params = {
+        "params.itemId": item_id,
+    }
+    url = "https://course.icve.com.cn/learnspace/course/exam/courseExamAction_stuIntoExamConfirm.json"
+    response = session.post(url=url, params=params, headers=HEADERS)
+    tree = html.fromstring(response.text)
+    exam_id = tree.xpath('//input[@id="examId"]/@value')
+    if exam_id:
+        return exam_id[0]
+    else:
+        return None
+
+
+def get_exam_paper_info(session, exam_record_id):
+    ''' 获取考试试卷信息 '''
+    params = {
+        "examRecordId": exam_record_id,
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_getExamPaperInfo.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    return post.json()
+
+
+def get_exam_record_info_before_exam(session, exam_id):
+    ''' 获取考试信息 '''
+    params = {
+        "params.examId": exam_id,
+    }
+    url = "https://spoc-exam.icve.com.cn/student/exam/studentExam_getRecordInfoBeforeExam.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    return post.json()
+
+def get_exam_record_info(session, batchId):
+    ''' 获取考试记录 '''
+    params = {
+        "batchId": batchId,
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_loadExamRecordInfo.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    return post.json()
+
+def create_exam_record(session, batchId):
+    ''' 创建考试记录 '''
+    params = {
+        "batchId": batchId,
+        "params.classId": "undefined",
+        "token": int(time.time() * 1000),
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_beforeIndex.action"
+    post = session.post(url=url, data=params, headers=HEADERS)
+    return post.json()
+
+def get_exam_page_html(session, exam_record_id, page=1):
+    ''' 获取考试页面html '''
+    params = {
+        "examRecordId": exam_record_id,
+        "paperPageSeq": page,
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_getPageHtml.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    if post.status_code != 200:
+        logger.debug('\t\t\t\t 获取考试页面html失败: %s', post.text)
+        return None
+    return post.text
 
 def get_aes(session, course_id, item_id, video_total_time, audio=False, start_time=0.0, end_time=0.0):
     def get_params(p):
@@ -384,6 +454,25 @@ def get_aes(session, course_id, item_id, video_total_time, audio=False, start_ti
     return msg
 
 
+def save_exam_answers(session, exam_record_id, ai_answers):
+    ''' 保存考试答案 '''
+    params = {
+        "examRecordId": exam_record_id,
+        "studentAnswers": json.dumps(ai_answers, ensure_ascii=False),
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_sendManyAnswer.action"
+    post = session.post(url=url, data=params, headers=HEADERS)
+    return post.json()
+
+def submit_exam_answers(session, exam_record_id):
+    ''' 提交考试答案 '''
+    params = {
+        "examRecordId": exam_record_id
+    }
+    url = "https://spoc-exam.icve.com.cn/exam/examflow_complete.action"
+    post = session.post(url=url, params=params, headers=HEADERS)
+    return post.json()
+
 def openLearnResItem(id, type, w=None, c=None):
     try:
         query_course_item_info = learning_time_query_course_item_info(session, id)
@@ -445,7 +534,98 @@ def openLearnResItem(id, type, w=None, c=None):
             logger.info("\t\t\t\t ~~~~>执行结果: %s --- %s", learn_detail_record['data']['timeRecordResult']['msg'],
                         learn_detail_record['data']['detailRecordResult']['msg'])
         elif type == "exam":
-            logger.info("\t\t\t\t ~~~~>执行结果: 作业考试跳过。")
+            # 如果开启AI答题功能，则调用AI处理
+            if use_ai_answer and ai_exam_handler:
+                # 获取考试id
+                exam_id = get_exam_info_by_item_id(session, item_id)
+                time.sleep(random.randint(1, 2))
+                exam_info = get_exam_record_info_before_exam(session, exam_id)
+                # data.examCount
+                if exam_info['data']['examCount'] > 0:
+                    logger.info('\t\t\t\t\t 考试次数: %s，已考过不再考试，跳过...', exam_info['data']['examCount'])
+                    return
+                # 获取考试记录
+                time.sleep(random.randint(1, 2))
+                exam_record_info = get_exam_record_info(session, exam_id)
+                exam_record_id = exam_record_info.get("data", {}).get("examRecordId")
+                logger.info('\t\t\t\t\t 获取答题记录: %s...', exam_record_id)
+                # 如果考试记录不存在，则创建考试记录
+                if not exam_record_info.get("data") or not exam_record_id:
+                    time.sleep(random.randint(1, 2))
+                    # 创建考试记录
+                    logger.info('\t\t\t\t\t 创建答题记录: %s', exam_id)
+                    create_exam_record(session, exam_id)
+                    time.sleep(random.randint(1, 2))
+                    exam_record_info = get_exam_record_info(session, exam_id)
+                    exam_record_id = exam_record_info.get("data").get("examRecordId")
+                time.sleep(random.randint(1, 2))
+                # 获取考试试卷信息
+                exam_paper_info = get_exam_paper_info(session, exam_record_id)
+                questionCount = exam_paper_info['data']['questionCount']
+                pageCount = exam_paper_info['data']['pageCount']
+                logger.info('\t\t\t\t\t 获取考试试卷信息，共 %s 个题目, 共 %s 页', questionCount, pageCount)
+                if exam_paper_info['retCode'] != '0':
+                    logger.error('\t\t\t\t\t 获取考试试卷信息失败: %s', exam_paper_info)
+                    return
+                answerCount = 0
+                for page in range(1, pageCount + 1):
+                    exam_page_html = get_exam_page_html(session, exam_record_id, page)
+                    if not exam_page_html:
+                        logger.error('\t\t\t\t\t 获取考试页面html失败: %s', exam_record_id)
+                        continue
+                    questions = parse_exam_questions(exam_page_html)
+                    logger.info('\t\t\t\t\t 🤖 开始AI智能答题，当前处理题目数量 %s，页码: %s', len(questions), page)
+                    for idx, question in enumerate(questions, 1):
+                        text = question.get('text', '')
+                        text = text[:50] + '...' if len(text) > 80 else text
+                        logger.info('\t\t\t\t\t\t 📝 [%d/%d] %s (%s分) %s', 
+                                    idx, 
+                                    len(questions),
+                                    question.get('type', ''), 
+                                    question.get('score', '0'), 
+                                    text)
+                    logger.info('\t\t\t\t\t 🤖 AI思考中，请稍等，题目数量较多将耗费一定时间...')
+
+                    logger.debug(f'\t\t\t\t\t 🤖 AI思考开始，题目: {questions}')
+                    start_time = time.time()
+                    ai_answers = ai_exam_handler.process_exam(questions, use_auto_submit)
+                    end_time = time.time()
+                    logger.debug(f'\t\t\t\t\t 🤖 AI思考完成，结果: {ai_answers}')
+                    
+                    if ai_answers:
+                        logger.info(f'\t\t\t\t\t ✅ AI答题成功，生成{len(ai_answers)}个答案，共{questionCount}个题目，耗时: {end_time - start_time}秒')
+                        # 输出AI答案结果
+                        # logger.info("\t\t\t\t\t 🎯 AI答题结果: %s", json.dumps(ai_answers))
+                        # 保存答案 
+                        save_result = save_exam_answers(session, exam_record_id, ai_answers)
+                        if save_result['retCode'] == '0':
+                            answerCount += len(ai_answers)
+                            logger.info(f'\t\t\t\t\t ✅ 保存 {len(ai_answers)} 个答案，结果: {save_result["data"]["saveDate"]}')
+                        else:
+                            logger.info(f'\t\t\t\t\t ❌ 保存答案结果，将取消自动提交: {save_result["retMsg"]}')
+                    else:
+                        logger.debug('\t\t\t\t\t ❌ AI答题失败，输出原始题目 %s', json.dumps(questions))
+                # 如果保存答案成功，则自动提交
+                if use_auto_submit:
+                    logger.info(f'\t\t\t\t\t ✅ 准备自动提交答案...')
+                    time.sleep(random.randint(1, 2))
+                    if answerCount == questionCount:
+                        submit = submit_exam_answers(session, exam_record_id)
+                        logger.info(f'\t\t\t\t\t ✅ 自动提交结果: {submit["retMsg"]}')
+                        time.sleep(random.randint(1, 2))
+                        exam_info = get_exam_record_info_before_exam(session, exam_id)
+                        if exam_info.get('data').get('lastScore'):
+                            logger.info(f'\t\t\t\t\t\t ✅ 分数: {exam_info["data"]["lastScore"]}')
+                            time.sleep(random.randint(1, 2))
+                    else:
+                        logger.info(f'\t\t\t\t\t ❌ 自动提交取消，答案数量不一致，共{questionCount}个题目，仅保存{answerCount}个答案，请手动检查后自行提交')
+
+                    
+            else:
+                logger.info('\t\t\t\t\t 🤖 未开启AI答题功能，跳过...')
+                
+        elif type == "homework":
+            logger.info("\t\t\t\t ~~~~>执行结果: 附件作业跳过。")
         else:
             time.sleep(10)
             course_item_learn_record = learning_time_save_course_item_learn_record(session, course_id, item_id)
@@ -482,7 +662,7 @@ def get_undo_time(session, courseId, itemId, videoTotalTime):
     return total_time_seconds * remaining_percentage
 
 
-def run(username, password, topic_content, jump_content, type_value):
+def run(username, password, topic_content, jump_content, type_value, is_ai_answer, is_auto_submit):
     separator = "*" * 40
     logger.info(separator)
     logger.info(f"运行信息")
@@ -491,18 +671,54 @@ def run(username, password, topic_content, jump_content, type_value):
     logger.info(f"* 评论配置: {topic_content if topic_content is not None else ''}")
     logger.info(f"* 跳过课程: {jump_content if jump_content is not None else ''}")
     logger.info(f"* 课程类型: {type_value}")
+    logger.info(f"* AI智能答题: {'✅ 已启用' if is_ai_answer else '❌ 未启用'}")
+    logger.info(f"* AI答题自动提交: {'✅ 已启用' if is_auto_submit else '❌ 未启用'}")
     logger.info(separator)
     logger.info("开始执行")
     logger.info(separator)
 
     global topic_content_all
     global user
+    global use_ai_answer
+    global use_auto_submit
+    global ai_exam_handler
+    
+    use_ai_answer = is_ai_answer
+    use_auto_submit = is_auto_submit
+    
     jump_list = []
     if jump_content is not None and '#' in jump_content:
         jump_list = jump_content.split('#')[1:]
     topic_content_all = topic_content
     user = username
     token = auth(session, username, password)
+    # 如果开启AI答题功能，初始化AI处理器
+    if use_ai_answer:
+        try:
+            logger.info("🤖 初始化AI答题处理器...")
+            from ai.ai_exam_handler import AIExamHandler
+            ai_exam_handler = AIExamHandler(token, verbose=False, auto_delete_chat=True)
+            
+            # 检查AI处理器是否正常初始化
+            if ai_exam_handler is None:
+                logger.error("❌ AI答题处理器初始化返回None，将关闭AI答题功能")
+                use_ai_answer = False
+                ai_exam_handler = None
+            else:
+                ai_exam_handler.ai_handler.cleanup_all_chats()
+                
+                # 加载AI体
+                if ai_exam_handler.load_agents():
+                    logger.info("✅ AI答题处理加载成功")
+                else:
+                    logger.error("❌ AI答题处理器加载失败，将关闭AI答题功能")
+                    use_ai_answer = False
+                    ai_exam_handler = None
+        except Exception as e:
+            logger.info(f"❌ AI处理初始化失败: {e}")
+            use_ai_answer = False
+            ai_exam_handler = None
+    
     load_mooc(session, token)
     logger.info(f"\t>>> 课程获取中...")
     mooc_select_mooc_course = student_mooc_select_mooc_course(session, token, type_value)

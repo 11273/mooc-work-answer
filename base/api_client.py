@@ -25,7 +25,7 @@ class BaseAPIClient:
         try:
             logger.debug(f"GET 请求: {url} | 参数: {params}")
             response = self.session.get(url, params=params)
-            logger.debug(f"GET 响应: {response.status_code} | {response.text}")
+            # logger.debug(f"GET 响应: {response.status_code} | {response.text}")
             return parse_response(response)
         except Exception as e:
             logger.error(f"GET 请求失败: {e}")
