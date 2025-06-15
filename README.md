@@ -2,7 +2,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/11273/mooc-work-answer?style=flat-square&logo=github)](https://github.com/11273/mooc-work-answer)
 [![GitHub forks](https://img.shields.io/github/forks/11273/mooc-work-answer?style=flat-square&logo=github)](https://github.com/11273/mooc-work-answer)
-[![GitHub issues](https://img.shields.io/github/issues/11273/mooc-work-answer?style=flat-square&logo=github)](https://github.com/11273/mooc-work-answer/issues)  
+[![GitHub issues](https://img.shields.io/github/issues/11273/mooc-work-answer?style=flat-square&logo=github)](https://github.com/11273/mooc-work-answer/issues)
 [![GitHub downloads](https://img.shields.io/github/downloads/11273/mooc-work-answer/total?style=flat-square&logo=github)](https://github.com/11273/mooc-work-answer/releases)
 
 > 🎓 智慧职教平台学习管理工具，通过官方 API 接口实现学习进度跟踪与辅助功能
@@ -78,11 +78,6 @@ python StartWork.py
 - 单线程运行，确保操作时间控制在合理范围
 - 已在 38+ 课程中进行兼容性测试
 
-### ⏰ 时间控制
-
-- **操作间隔**: 300-1000 秒随机间隔，符合正常使用习惯
-- **学习时长**: 基于课件时长进行合理的时间分配
-
 ### 🛡️ 安全机制
 
 - 遵循正常用户操作节奏
@@ -110,7 +105,7 @@ python StartWork.py
 ### 📢 免责声明
 
 - **学习用途**: 本项目仅供技术学习和研究使用，严禁用于商业盈利
-- **AI 参考性**: AI 学习辅助准确率约 80-100%，重要评估请人工验证
+- **AI 参考性**: AI 学习辅助准确率约 60-100%，重要评估请人工验证
 - **使用责任**: 用户应自行承担使用本工具的所有责任和风险
 - **合规使用**: 请严格遵守相关平台的使用条款和服务协议
 - **技术性质**: 本项目为学习管理工具，通过合法 API 接口进行数据交互
