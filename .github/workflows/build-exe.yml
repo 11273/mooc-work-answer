@@ -1,4 +1,4 @@
-name: EXE Build
+name: 多平台构建
 
 on:
   push:
@@ -11,39 +11,70 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-2022
+            platform: windows
+            arch: x64
+            ext: .exe
+            name: Windows
+            icon: 🪟
+          - os: macos-latest
+            platform: macos
+            arch: x64
+            ext: ""
+            name: macOS
+            icon: 🍎
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            ext: ""
+            name: Linux
+            icon: 🐧
 
     steps:
-      - name: 检出代码
+      - name: ${{ matrix.icon }} 检出代码 (${{ matrix.name }})
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
           token: ${{ secrets.PAT_TOKEN }}
 
-      - name: 获取当前 Git 标签
-        run: |
-          echo "TAG_NAME=${{github.ref_name}}" >> $env:GITHUB_ENV
-
-      - name: 获取上一个 Git 标签
-        id: previous_tag
-        run: echo "PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)" >> $env:GITHUB_ENV
-
-      - name: 获取提交日志
-        id: changelog
+      - name: 获取版本信息
         shell: bash
         run: |
-          badge1="[![downloads](https://img.shields.io/github/downloads/11273/mooc-work-answer/${{ env.TAG_NAME }}/total)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
-          badge2="[![visitors](https://vbr.nathanchung.dev/badge?page_id=mooc-work-answer.${{ env.TAG_NAME }})](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
-          header="## 更新日志"
-      
-          log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s (%an, %ad)" --date=short --no-merges | grep "^- \[.*\]")
-      
-          changelog="${badge1} ${badge2}\n${header}\n${log}"
-      
+          echo "TAG_NAME=${{github.ref_name}}" >> $GITHUB_ENV
+          if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
+            echo "PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)" >> $GITHUB_ENV
+          else
+            echo "PREV_TAG=" >> $GITHUB_ENV
+          fi
+
+      - name: 生成更新日志
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          badge1="[![GitHub Release](https://img.shields.io/github/v/release/11273/mooc-work-answer?style=flat-square&logo=github&color=blue)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
+          badge2="[![下载统计](https://img.shields.io/github/downloads/11273/mooc-work-answer/${{ env.TAG_NAME }}/total?style=flat-square&logo=github&color=green)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
+          header="## 🚀 版本更新 ${{ env.TAG_NAME }}"
+          
+          # 获取提交日志并格式化
+          if [ "${{ env.PREV_TAG }}" ]; then
+            log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+          else
+            log=$(git log --pretty=format:"- %s" --no-merges | head -10)
+          fi
+          
+          # 生成发布说明
+          platforms="### 📦 支持平台\n- 🪟 **Windows**: 支持 Windows 7/8/10/11 (x64)\n- 🍎 **macOS**: 支持 macOS 10.14+ (Intel & Apple Silicon)\n- 🐧 **Linux**: 支持主流 Linux 发行版 (x64)"
+          changelog="${badge1} ${badge2}\n\n${header}\n\n### 📋 更新内容\n${log}\n\n${platforms}\n\n### 💾 下载说明\n- **Windows**: 直接下载 \`.exe\` 文件运行\n- **macOS**: 直接下载可执行文件，通过终端运行\n- **Linux**: 直接下载可执行文件运行\n\n### 🔧 使用方法\n1. 根据您的系统下载对应版本（无需解压）\n2. **Windows**: 双击运行 \`.exe\` 文件\n3. **macOS**: 打开终端，拖拽文件到终端窗口，然后按回车\n4. **Linux**: 在终端中运行 \`./filename\`\n5. 按照提示输入账号信息，选择需要的功能开始使用\n\n### 💡 macOS 使用提示\n- 下载后直接拖拽文件到终端窗口即可运行\n- 或者在终端中 cd 到文件所在目录，然后运行 \`./filename\`"
+          
           echo -e "$changelog" > changelog.txt
 
-      - name: 注入环境变量1
+      - name: 注入环境变量 (Spec文件)
+        if: matrix.platform == 'windows'
         uses: NicoG60/simple-template-renderer@v1
         with:
           input: StartWorkLite.spec
@@ -51,62 +82,228 @@ jobs:
           PYINSTALL_KEY: ${{ secrets.PYINSTALL_KEY }}
           TAG_NAME: ${{ env.TAG_NAME }}
 
-      - name: 注入环境变量2
+      - name: 注入环境变量 (Python文件)
         uses: NicoG60/simple-template-renderer@v1
         with:
           input: StartWork.py
         env:
           TAG_NAME: ${{ env.TAG_NAME }}
 
-      - name: 查看配置项
+      - name: ${{ matrix.icon }} 显示构建信息 (${{ matrix.name }})
+        shell: bash
         run: |
-          echo "==================================="
-          echo "PREV_TAG: ${{ env.PREV_TAG }}"
-          echo "==================================="
-          echo "TAG_NAME: ${{ env.TAG_NAME }}"
-          echo "==================================="
-          echo "CHANGELOG:"
-          cat changelog.txt
+          echo "======================================"
+          echo "${{ matrix.icon }} 构建信息 - ${{ matrix.name }}"
+          echo "======================================"
+          echo "平台: ${{ matrix.platform }}"
+          echo "架构: ${{ matrix.arch }}"
+          echo "运行器: ${{ matrix.os }}"
+          echo "上一版本: ${{ env.PREV_TAG }}"
+          echo "当前版本: ${{ env.TAG_NAME }}"
+          echo "======================================"
 
-      - name: 使用 Python 3.8
-        uses: actions/setup-python@v3
+      - name: 配置 Python 环境
+        uses: actions/setup-python@v4
         with:
           python-version: "3.8"
 
-      - name: 安装依赖
+      - name: 安装系统依赖 (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: 安装构建依赖
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller==4.5
+          # 使用更新的 PyInstaller 版本解决 macOS 代码签名问题
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            pip install pyinstaller==5.13.2
+          else
+            pip install pyinstaller==4.5
+          fi
           pip install wheel
           pip install tinyaes
           pip install -r requirements.txt
 
-      - name: 打包 EXE
-        run: pyinstaller StartWorkLite.spec
-
-      - name: 创建 GitHub 发布
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ env.TAG_NAME }}
-          body_path: changelog.txt
-          files: "dist/*"
-          draft: false
-          prerelease: false
-        env:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 更新 README.md
+      - name: ${{ matrix.icon }} 构建可执行文件 (${{ matrix.name }})
+        shell: bash
         run: |
-          sed -i "s|\(\- 最新版下载 \[Download exe 绿色运行版 >>>\]\)([^)]*)|\1(${{ steps.create_release.outputs.url }})|g" README.md
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git pull origin main
-          git add README.md
-          git commit -m "Update README.md for ${{ env.TAG_NAME }}"
+          echo "🔨 开始构建 ${{ matrix.name }} 可执行文件..."
+          
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            pyinstaller StartWorkLite.spec
+          else
+            # Linux 构建
+            pyinstaller --onefile \
+              --name "MoocWorkAnswer-${{ env.TAG_NAME }}-lite-${{ matrix.platform }}" \
+              --distpath dist \
+              --workpath build \
+              --specpath . \
+              --console \
+              StartWork.py
+          fi
+          
+          echo "✅ ${{ matrix.name }} 构建完成"
 
-      - name: 推送更改
-        uses: ad-m/github-push-action@master
+      - name: 验证构建结果
+        shell: bash
+        run: |
+          if ls dist/* 1> /dev/null 2>&1; then
+            echo "✅ ${{ matrix.name }} 构建文件生成成功"
+            ls -la dist/
+          else
+            echo "❌ ${{ matrix.name }} 构建文件生成失败"
+            exit 1
+          fi
+
+      - name: 重命名输出文件并设置权限
+        shell: bash
+        run: |
+          cd dist
+          for file in *; do
+            if [ -f "$file" ]; then
+              # 获取文件扩展名
+              if [ "${{ matrix.platform }}" = "windows" ]; then
+                ext=".exe"
+              else
+                ext=""
+              fi
+              
+              # 统一文件名格式
+              new_name="MoocWorkAnswer-${{ env.TAG_NAME }}-lite-${{ matrix.platform }}${ext}"
+              
+              # 检查文件名是否已经是目标名称
+              if [ "$file" != "$new_name" ]; then
+                mv "$file" "$new_name"
+                echo "✅ 文件重命名: $file -> $new_name"
+              else
+                echo "ℹ️ 文件名已正确，跳过重命名: $file"
+              fi
+              
+              # 为 macOS 和 Linux 设置执行权限和文件属性
+              if [ "${{ matrix.platform }}" != "windows" ]; then
+                chmod +x "$new_name"
+                echo "✅ 已设置执行权限: $new_name"
+                
+                # macOS 特殊处理：设置文件类型
+                if [ "${{ matrix.platform }}" = "macos" ]; then
+                  # 确保文件被识别为 Unix 可执行文件
+                  file "$new_name"
+                  ls -la "$new_name"
+                fi
+              fi
+            fi
+          done
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.PAT_TOKEN }}
-          branch: main
+          name: build-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/*
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 整理发布文件
+        run: |
+          mkdir -p release-files
+          find artifacts -name "*" -type f -exec cp {} release-files/ \;
+          
+          # 确保 macOS 和 Linux 文件有执行权限
+          cd release-files
+          for file in *; do
+            if [[ "$file" != *.exe ]]; then
+              chmod +x "$file"
+              echo "✅ 设置执行权限: $file"
+              
+              # 检查 macOS 文件
+              if [[ "$file" == *"macos"* ]]; then
+                echo "🍎 macOS 文件信息:"
+                file "$file" || echo "file 命令不可用"
+                ls -la "$file"
+              fi
+            fi
+          done
+          
+          echo "📦 所有发布文件:"
+          ls -la
+
+      - name: 获取更新日志
+        run: |
+          # 重新生成更新日志（因为需要在release job中使用）
+          TAG_NAME=${{github.ref_name}}
+          if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
+            log=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+          else
+            log=$(git log --pretty=format:"- %s" --no-merges | head -10)
+          fi
+          
+          badge1="[![GitHub Release](https://img.shields.io/github/v/release/11273/mooc-work-answer?style=flat-square&logo=github&color=blue)](https://github.com/11273/mooc-work-answer/releases/tag/${TAG_NAME})"
+          badge2="[![下载统计](https://img.shields.io/github/downloads/11273/mooc-work-answer/${TAG_NAME}/total?style=flat-square&logo=github&color=green)](https://github.com/11273/mooc-work-answer/releases/tag/${TAG_NAME})"
+          header="## 🚀 版本更新 ${TAG_NAME}"
+          platforms="### 📦 支持平台\n- 🪟 **Windows**: 支持 Windows 7/8/10/11 (x64)\n- 🍎 **macOS**: 支持 macOS 10.14+ (Intel & Apple Silicon)\n- 🐧 **Linux**: 支持主流 Linux 发行版 (x64)"
+          changelog="${badge1} ${badge2}\n\n${header}\n\n### 📋 更新内容\n${log}\n\n${platforms}\n\n### 💾 下载说明\n- **Windows**: 直接下载 \`.exe\` 文件运行\n- **macOS**: 直接下载可执行文件，通过终端运行\n- **Linux**: 直接下载可执行文件运行\n\n### 🔧 使用方法\n1. 根据您的系统下载对应版本（无需解压）\n2. **Windows**: 双击运行 \`.exe\` 文件\n3. **macOS**: 打开终端，拖拽文件到终端窗口，然后按回车\n4. **Linux**: 在终端中运行 \`./filename\`\n5. 按照提示输入账号信息，选择需要的功能开始使用\n\n### 💡 macOS 使用提示\n- 下载后直接拖拽文件到终端窗口即可运行\n- 或者在终端中 cd 到文件所在目录，然后运行 \`./filename\`"
+          
+          echo -e "$changelog" > changelog.txt
+
+      # - name: 🚀 创建多平台发布
+      #   id: create_release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     name: "🚀 Release ${{github.ref_name}}"
+      #     body_path: changelog.txt
+      #     files: |
+      #       release-files/*
+      #     draft: false
+      #     prerelease: false
+      #     make_latest: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: 更新 README 发布链接
+      #   run: |
+      #     echo "📝 更新 README.md 中的下载链接..."
+          
+      #     # 更新 README.md 中的下载链接
+      #     sed -i "s|https://github.com/11273/mooc-work-answer/releases/latest|${{ steps.create_release.outputs.url }}|g" README.md
+          
+      #     # 检查是否有变更
+      #     if git diff --quiet README.md; then
+      #       echo "ℹ️ README.md 无需更新"
+      #     else
+      #       echo "✅ README.md 已更新"
+      #       git config --global user.name "🤖 GitHub Actions"
+      #       git config --global user.email "actions@github.com"
+      #       git add README.md
+      #       git commit -m "📝 更新 README.md 发布链接至 ${{github.ref_name}}"
+      #     fi
+
+      # - name: 推送更改到仓库
+      #   if: success()
+      #   run: |
+      #     git config --global user.name "🤖 GitHub Actions"
+      #     git config --global user.email "actions@github.com"
+          
+      #     # 先拉取远程更改避免冲突
+      #     git pull origin main --rebase || true
+          
+      #     # 如果有更改则推送
+      #     if ! git diff --quiet HEAD~1 HEAD; then
+      #       git push https://${{ secrets.PAT_TOKEN }}@github.com/11273/mooc-work-answer.git main
+      #       echo "✅ 成功推送更改到仓库"
+      #     else
+      #       echo "ℹ️ 没有需要推送的更改"
+      #     fi
