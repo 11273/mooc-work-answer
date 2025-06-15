@@ -259,19 +259,19 @@ jobs:
           
           echo -e "$changelog" > changelog.txt
 
-      # - name: 🚀 创建多平台发布
-      #   id: create_release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     name: "🚀 Release ${{github.ref_name}}"
-      #     body_path: changelog.txt
-      #     files: |
-      #       release-files/*
-      #     draft: false
-      #     prerelease: false
-      #     make_latest: true
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🚀 创建多平台发布
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "🚀 Release ${{github.ref_name}}"
+          body_path: changelog.txt
+          files: |
+            release-files/*
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: 更新 README 发布链接
       #   run: |
