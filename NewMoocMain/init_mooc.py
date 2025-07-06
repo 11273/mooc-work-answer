@@ -778,7 +778,7 @@ def run(username, password, topic_content, jump_content, type_value, is_ai_answe
                     use_ai_answer = False
                     ai_exam_handler = None
         except Exception as e:
-            logger.exception(f"❌ AI处理初始化失败: {e}")
+            logger.exception(f"❌ AI处理初始化失败: {e}", e)
             use_ai_answer = False
             ai_exam_handler = None
     
