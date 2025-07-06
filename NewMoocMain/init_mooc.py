@@ -72,8 +72,32 @@ def is_login(session):
     return post.text
 
 
+def get_user_info(session):
+    url = "https://mooc.icve.com.cn/patch/zhzj/api_getUserInfo.action"
+    
+    try:
+        response = session.post(url=url, headers=HEADERS, data="")
+        logger.debug(f"获取用户信息响应: {response.text}")
+        
+        if response.status_code == 200:
+            try:
+                user_info = response.json()
+                logger.debug(f"用户信息解析成功: {user_info}")
+                return user_info
+            except json.JSONDecodeError:
+                logger.warning(f"用户信息JSON解析失败: {response.text}")
+                return response.text
+        else:
+            logger.error(f"获取用户信息失败，状态码: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"获取用户信息异常: {e}")
+        return None
+
+
 def student_mooc_select_mooc_course(session, token, type_value):
-    if type_value == 3:
+    if type_value == 2:
         url = "https://user.icve.com.cn/learning/u/userDefinedSql/getBySqlCode.json"
         data = {
             'data': 'info',
@@ -662,12 +686,13 @@ def get_undo_time(session, courseId, itemId, videoTotalTime):
     return total_time_seconds * remaining_percentage
 
 
-def run(username, password, topic_content, jump_content, type_value, is_ai_answer, is_auto_submit):
+def run(username, password, topic_content, jump_content, type_value, is_ai_answer, is_auto_submit, token=None):
     separator = "*" * 40
     logger.info(separator)
     logger.info(f"运行信息")
     logger.info(separator)
-    logger.info(f"* 登录账号: {username}")
+    logger.info(f"* 登录账号: {username if not token else 'OAuth浏览器登录'}")
+    logger.info(f"* 登录方式: {'OAuth浏览器登录' if token else '用户名密码登录'}")
     logger.info(f"* 评论配置: {topic_content if topic_content is not None else ''}")
     logger.info(f"* 跳过课程: {jump_content if jump_content is not None else ''}")
     logger.info(f"* 课程类型: {type_value}")
@@ -691,7 +716,45 @@ def run(username, password, topic_content, jump_content, type_value, is_ai_answe
         jump_list = jump_content.split('#')[1:]
     topic_content_all = topic_content
     user = username
-    token = auth(session, username, password)
+    
+    # 根据是否提供token选择不同的认证方法
+    if token:
+        # 使用已提供的token（OAuth登录）
+        logger.info("🔐 使用OAuth登录获取的token")
+        session.cookies.set('token', token)
+    else:
+        # 使用传统的用户名密码登录
+        token = auth(session, username, password)
+    
+    # 获取并展示用户信息
+    logger.info("📋 获取用户信息...")
+    user_info_response = get_user_info(session)
+    if user_info_response and isinstance(user_info_response, dict):
+        if user_info_response.get('errorCode') == 'A0000' and user_info_response.get('data'):
+            user_data = user_info_response['data']
+            logger.info("✅ 用户信息获取成功")
+            logger.info("=" * 50)
+            logger.info("📋 用户信息")
+            logger.info("=" * 50)
+            logger.info(f"👤 用户名: {user_data.get('userName', '未知')}")
+            logger.info(f"🏷️  显示名: {user_data.get('displayName', '未知')}")
+            logger.info(f"🏫 学校名: {user_data.get('schoolName', '未知')}")
+            logger.info(f"📱 手机号: {user_data.get('mobile', '未知')}")
+            logger.info(f"📧 邮箱: {user_data.get('email', '未填写') if user_data.get('email') else '未填写'}")
+            logger.info(f"🌍 省份: {user_data.get('province', '未知')}")
+            logger.info(f"🌆 城市: {user_data.get('city', '未填写') if user_data.get('city') else '未填写'}")
+            logger.info(f"👥 用户类型: {'学生' if user_data.get('userType') == '1' else '其他'}")
+            logger.info(f"🕐 上次访问: {user_data.get('dateLastVisit', '未知')}")
+            logger.info(f"📅 注册时间: {user_data.get('dateCreated', '未知')}")
+            logger.info("=" * 50)
+            
+            # 更新全局用户变量
+            user = user_data.get('displayName', user_data.get('userName', username))
+        else:
+            logger.warning(f"⚠️ 用户信息获取失败: {user_info_response.get('errorMsg', '未知错误')}")
+    else:
+        logger.warning("⚠️ 无法获取用户信息，继续执行...")
+    
     # 如果开启AI答题功能，初始化AI处理器
     if use_ai_answer:
         try:
@@ -715,7 +778,7 @@ def run(username, password, topic_content, jump_content, type_value, is_ai_answe
                     use_ai_answer = False
                     ai_exam_handler = None
         except Exception as e:
-            logger.info(f"❌ AI处理初始化失败: {e}")
+            logger.exception(f"❌ AI处理初始化失败: {e}")
             use_ai_answer = False
             ai_exam_handler = None
     

@@ -8,12 +8,18 @@ from base.util import parse_duration, get_mp3_duration
 
 
 class ZYKMoocHandler:
-    def __init__(self, username: str, password: str, jump_content: str):
+    def __init__(self, username: str = "", password: str = "", jump_content: str = "", token: str = None):
         """初始化 API 客户端和日志"""
         self.jump_list = []
         if jump_content and '#' in jump_content:
             self.jump_list = jump_content.split('#')[1:]
-        self.client = ZYKMoocApi(username, password)
+        
+        # 根据是否提供token选择不同的初始化方式
+        if token:
+            self.client = ZYKMoocApi(token=token)
+        else:
+            self.client = ZYKMoocApi(username, password)
+            
         self.logging = Logger(__name__).get_log()
         self.start_courses()
 

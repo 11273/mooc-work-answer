@@ -84,7 +84,7 @@ def print_subsection_header(title: str, description: str = "", width: int = SUB_
 
 def get_user_choice(prompt: str, default: str = 'n') -> bool:
     """获取用户的 y/n 选择"""
-    response = input(f'* {prompt} [y/n] (默认{default}): ').lower().strip()
+    response = input(f'* {prompt} [y/n] (默认{default}): ').lower().strip() or default
     choice = response == 'y'
     record_config(prompt, choice)
     return choice
@@ -108,25 +108,94 @@ def get_version_choice() -> int:
         except ValueError:
             logger.warning('❌ 请输入有效的数字')
 
-def get_account_info() -> Tuple[str, str]:
-    """获取用户账号信息"""
-    print_section_header("账号配置", "请输入您的登录账号和密码")
+def get_login_info() -> Tuple[str, str, str]:
+    """获取用户登录信息，返回(username, password, token)"""
+    print_section_header("登录方式选择", "请选择您的登录方式")
     
-    username = input('* 账号: ').strip()
-    password = input('* 密码: ').strip()
+    logger.info('  1. 账号密码登录 (传统方式)')
+    logger.info('  2. OAuth浏览器登录 (安全方式，无需输入密码)')
+    logger.info('=' * BORDER_WIDTH)
     
-    while not username or not password:
-        logger.warning('❌ 账号和密码不能为空，请重新输入')
-        if not username:
-            username = input('* 账号: ').strip()
-        if not password:
-            password = input('* 密码: ').strip()
+    while True:
+        try:
+            choice = int(input('* 请选择登录方式 [1-2] (默认2): ') or 2)
+            if choice in [1, 2]:
+                break
+            else:
+                logger.warning('❌ 请输入 1 或 2')
+        except ValueError:
+            logger.warning('❌ 请输入有效的数字')
     
-    # 记录账号信息（密码为敏感信息）
-    record_config("账号", username)
-    record_config("密码", password, sensitive=True)
+    if choice == 1:
+        # 账号密码登录
+        record_config("登录方式", "账号密码登录")
+        print_section_header("账号配置", "请输入您的登录账号和密码")
+        
+        username = input('* 账号: ').strip()
+        password = input('* 密码: ').strip()
+        
+        while not username or not password:
+            logger.warning('❌ 账号和密码不能为空，请重新输入')
+            if not username:
+                username = input('* 账号: ').strip()
+            if not password:
+                password = input('* 密码: ').strip()
+        
+        # 记录账号信息（密码为敏感信息）
+        record_config("账号", username)
+        record_config("密码", password, sensitive=True)
+        
+        return username, password, None
     
-    return username, password
+    else:
+        # OAuth浏览器登录
+        record_config("登录方式", "OAuth浏览器登录")
+        print_section_header("OAuth登录", "将打开浏览器进行安全登录")
+        
+        logger.info('⚠️  注意：')
+        logger.info('  - 程序将自动打开浏览器')
+        logger.info('  - 请在浏览器中完成登录')
+        logger.info('  - 支持扫码、短信等多种登录方式')
+        logger.info('  - 登录成功后会自动获取token')
+        logger.info('=' * BORDER_WIDTH)
+        
+        # 询问是否继续
+        if not get_user_choice("是否继续使用OAuth登录", "y"):
+            logger.info("取消OAuth登录，请重新选择登录方式")
+            return get_login_info()  # 重新选择
+        
+        # 执行OAuth登录
+        try:
+            from NewMoocMain.oauth_login import oauth_login
+            logger.info("🔐 正在启动OAuth登录...")
+            token = oauth_login(timeout=300)
+            
+            if token:
+                logger.info("✅ OAuth登录成功")
+                record_config("OAuth登录", "成功")
+                return "", "", token  # 返回空的用户名密码和token
+            else:
+                logger.error("❌ OAuth登录失败")
+                record_config("OAuth登录", "失败")
+                
+                # 询问是否重试或切换到账号密码登录
+                if get_user_choice("是否重试OAuth登录", "y"):
+                    return get_login_info()  # 重新选择
+                else:
+                    logger.info("切换到账号密码登录")
+                    return get_login_info()  # 重新选择
+                    
+        except Exception as e:
+            logger.error(f"❌ OAuth登录异常: {e}")
+            record_config("OAuth登录", f"异常: {str(e)}")
+            
+            # 询问是否切换到账号密码登录
+            if get_user_choice("是否切换到账号密码登录", "y"):
+                return get_login_info()  # 重新选择
+            else:
+                logger.error("❌ 无法继续，程序退出")
+                input('程序退出')
+                exit(0)
 
 def get_skip_course_config() -> Optional[str]:
     """获取跳过课程配置"""
@@ -192,16 +261,21 @@ def get_ai_answer_config() -> Tuple[bool, bool]:
 
 def handle_resource_library(version: int):
     """处理资源库版本"""
-    username, password = get_account_info()
+    username, password, token = get_login_info()
     skip_keywords = get_skip_course_config()
     
     logger.info(f"┃🚀 启动{VERSION_OPTIONS[version]}版本┃")
     log_user_config()  # 记录完整配置
-    ZYKMoocHandler(username, password, skip_keywords)
+    
+    # 根据登录方式调用不同的参数
+    if token:
+        ZYKMoocHandler(jump_content=skip_keywords, token=token)
+    else:
+        ZYKMoocHandler(username, password, skip_keywords)
 
 def handle_mooc_or_classroom(version: int):
     """处理MOOC或课堂版"""
-    username, password = get_account_info()
+    username, password, token = get_login_info()
     topic_content = get_topic_reply_config()
     skip_keywords = get_skip_course_config()
     ai_answer, auto_submit = get_ai_answer_config()
@@ -215,7 +289,8 @@ def handle_mooc_or_classroom(version: int):
         jump_content=skip_keywords, 
         type_value=version, 
         is_ai_answer=ai_answer, 
-        is_auto_submit=auto_submit
+        is_auto_submit=auto_submit,
+        token=token
     )
 
 def print_exit_message():

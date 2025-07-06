@@ -15,23 +15,28 @@ ZYK_UPLOAD_BASE_URL = "https://upload.icve.com.cn"
 
 
 class ZYKMoocApi(BaseAPIClient):
-    def __init__(self, username: str, password: str):
+    def __init__(self, username: str = "", password: str = "", token: str = None):
         super().__init__(ZYK_BASE_URL)
         self.username = username
         self.password = password
         self.student_id = ''
 
-        self.token = None
+        self.token = token  # 如果提供了token，就使用OAuth登录
         self.access_token = None
 
         self.login()
 
     def login(self) -> None:
         """登录逻辑"""
-        self.token = self._get_sso_token()
+        # 如果没有提供token，使用用户名密码登录
         if not self.token:
-            logging.error("❌ 登录失败，未获取到 token")
-            return
+            logging.info("🔐 使用用户名密码登录...")
+            self.token = self._get_sso_token()
+            if not self.token:
+                logging.error("❌ 登录失败，未获取到 token")
+                return
+        else:
+            logging.info("🔐 使用OAuth登录获取的token...")
 
         self.access_token = self._get_access_token(self.token)
         if self.access_token:
