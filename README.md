@@ -20,7 +20,7 @@
 
 | 平台            | 地址                                                                                  | 支持功能                   | AI 辅助 | 状态      |
 | --------------- | ------------------------------------------------------------------------------------- | -------------------------- | ------- | --------- |
-| AI-MOOC         | [ai.icve.com.cn](https://ai.icve.com.cn/)                                             | 学习管理                   | ❌      | ✅ 运行中 |
+| 智慧职教-AI 版  | [ai.icve.com.cn](https://ai.icve.com.cn/)                                             | 学习管理                   | ❌      | ✅ 运行中 |
 | 智慧职教-MOOC   | [icve-mooc.icve.com.cn](https://icve-mooc.icve.com.cn)                                | 学习管理、讨论、AI 辅助    | ✅      | ⚠️ 已下线 |
 | 智慧职教-课堂版 | [user.icve.com.cn](https://user.icve.com.cn/learning/u/student/teaching/index.action) | 学习管理、讨论             | ❌      | ✅ 运行中 |
 | 智慧职教-资源库 | [zyk.icve.com.cn](https://zyk.icve.com.cn/)                                           | 学习管理                   | ❌      | ✅ 运行中 |
