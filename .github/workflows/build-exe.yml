@@ -63,9 +63,14 @@ jobs:
           badge3="[![访问统计](https://komarev.com/ghpvc/?username=${VIEW_COUNTER_ID}&label=Views&style=flat-square&color=brightgreen)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
           header="## 🚀 版本更新 ${{ env.TAG_NAME }}"
           
-          # 获取提交日志并格式化
+          # 获取提交日志并格式化 - 使用更可靠的方法
           if [ "${{ env.PREV_TAG }}" ]; then
-            log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+            # 使用标签之间的提交范围，确保包含所有提交
+            log=$(git rev-list ${{ env.PREV_TAG }}..${{ env.TAG_NAME }} --pretty=format:"- %s" --no-merges | grep "^-" | head -20)
+            # 如果上面的命令没有结果，回退到原方法
+            if [ -z "$log" ]; then
+              log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+            fi
           else
             log=$(git log --pretty=format:"- %s" --no-merges | head -10)
           fi
@@ -251,7 +256,12 @@ jobs:
           TAG_NAME=${{github.ref_name}}
           if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
             PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
-            log=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+            # 使用标签之间的提交范围，确保包含所有提交
+            log=$(git rev-list ${PREV_TAG}..${TAG_NAME} --pretty=format:"- %s" --no-merges | grep "^-" | head -20)
+            # 如果上面的命令没有结果，回退到原方法
+            if [ -z "$log" ]; then
+              log=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges | head -20)
+            fi
           else
             log=$(git log --pretty=format:"- %s" --no-merges | head -10)
           fi
