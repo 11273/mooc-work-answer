@@ -31,14 +31,17 @@ class BaseAPIClient:
             logger.error(f"GET 请求失败: {e}")
             return None
 
-    def post(self, endpoint, json=None, data=None, base_url=None):
+    def post(self, endpoint, json=None, data=None, base_url=None, origin_response=False):
         """封装 POST 请求，支持自定义 base_url"""
         url = f"{base_url or self.default_base_url}{endpoint}"
         try:
             logger.debug(f"POST 请求: {url} | JSON: {json} | 表单数据: {data}")
             response = self.session.post(url, json=json, data=data)
             logger.debug(f"POST 响应: {response.status_code} | {response.text}")
-            return parse_response(response)
+            if origin_response:
+                return response.json()
+            else:
+                return parse_response(response)
         except Exception as e:
             logger.error(f"POST 请求失败: {e}")
             return None

@@ -8,12 +8,14 @@
 
 import textwrap
 import time
+from time import sleep
 from typing import Optional, Tuple, Dict, Any
 
 import MoocMain.initMooc as MoocInit
 import NewMoocMain.init_mooc as NewMoocInit
 from MoocMain.log import Logger
 from ZYKMoocMain.main import ZYKMoocHandler
+from AIMoocMain.main import AIMoocHandler
 from update import check_for_updates
 
 # ****************************************** 常量定义 ******************************************
@@ -24,6 +26,7 @@ SUB_BORDER_WIDTH = 50
 
 # 版本选项
 VERSION_OPTIONS = {
+    0: "AI MOOC",
     1: "MOOC",
     2: "课堂版", 
     3: "资源库"
@@ -85,6 +88,7 @@ def print_subsection_header(title: str, description: str = "", width: int = SUB_
 def get_user_choice(prompt: str, default: str = 'n') -> bool:
     """获取用户的 y/n 选择"""
     response = input(f'* {prompt} [y/n] (默认{default}): ').lower().strip() or default
+    sleep(0.2)
     choice = response == 'y'
     record_config(prompt, choice)
     return choice
@@ -99,12 +103,13 @@ def get_version_choice() -> int:
     
     while True:
         try:
-            choice = int(input(f'* 请选择版本 [1-{len(VERSION_OPTIONS)}] (默认1): ') or 1)
+            choice = int(input(f'* 请选择版本 [1-{len(VERSION_OPTIONS)}] (默认0): ') or 0)
+            sleep(0.2)
             if choice in VERSION_OPTIONS:
                 record_config("选择版本", f"{choice} - {VERSION_OPTIONS[choice]}")
                 return choice
             else:
-                logger.warning(f'❌ 请输入 1-{len(VERSION_OPTIONS)} 之间的数字')
+                logger.warning(f'❌ 请输入 0-{len(VERSION_OPTIONS)} 之间的数字')
         except ValueError:
             logger.warning('❌ 请输入有效的数字')
 
@@ -119,6 +124,7 @@ def get_login_info() -> Tuple[str, str, str]:
     while True:
         try:
             choice = int(input('* 请选择登录方式 [1-2] (默认2): ') or 2)
+            sleep(0.2)
             if choice in [1, 2]:
                 break
             else:
@@ -130,15 +136,18 @@ def get_login_info() -> Tuple[str, str, str]:
         # 账号密码登录
         record_config("登录方式", "账号密码登录")
         print_section_header("账号配置", "请输入您的登录账号和密码")
-        
+
+        sleep(0.2)
         username = input('* 账号: ').strip()
         password = input('* 密码: ').strip()
         
         while not username or not password:
             logger.warning('❌ 账号和密码不能为空，请重新输入')
             if not username:
+                sleep(0.2)
                 username = input('* 账号: ').strip()
             if not password:
+                sleep(0.2)
                 password = input('* 密码: ').strip()
         
         # 记录账号信息（密码为敏感信息）
@@ -194,6 +203,7 @@ def get_login_info() -> Tuple[str, str, str]:
                 return get_login_info()  # 重新选择
             else:
                 logger.error("❌ 无法继续，程序退出")
+                sleep(0.2)
                 input('程序退出')
                 exit(0)
 
@@ -209,7 +219,7 @@ def get_skip_course_config() -> Optional[str]:
         logger.info('  多个关键字随机: #设计#思想道德#技术')
         logger.info('  单个关键字固定: #思想')
         logger.info('-' * SUB_BORDER_WIDTH)
-        
+        sleep(0.2)
         keywords = input('* 请输入关键字 (例：#电商#商务英语): ').strip()
         final_keywords = keywords if keywords else None
         record_config("跳过课程关键字", final_keywords or "无")
@@ -230,7 +240,7 @@ def get_topic_reply_config() -> Optional[str]:
         logger.info('  多个内容随机: #好#加油#积极响应')
         logger.info('  单个内容固定: #好')
         logger.info('-' * SUB_BORDER_WIDTH)
-        
+        sleep(0.2)
         content = input('* 请输入回复内容 (默认:#好#加油#积极响应): ').strip()
         final_content = content if content else '#好#加油#积极响应'
         record_config("讨论回复内容", final_content)
@@ -293,6 +303,15 @@ def handle_mooc_or_classroom(version: int):
         token=token
     )
 
+def handle_ai_mooc(version: int):
+    """处理AI MOOC"""
+    username, password, token = get_login_info()
+    skip_keywords = get_skip_course_config()
+    
+    logger.info(f"┃🚀 启动{VERSION_OPTIONS[version]}版本┃")
+    log_user_config()  # 记录完整配置
+    AIMoocHandler(jump_content=skip_keywords, token=token)
+
 def print_exit_message():
     """打印退出信息"""
     message = textwrap.dedent("""
@@ -302,6 +321,7 @@ def print_exit_message():
         ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
     """)
     logger.info(message)
+    sleep(0.2)
     input('按回车键退出...')
 
 def main():
@@ -319,6 +339,8 @@ def main():
         
         if version == 3:  # 资源库
             handle_resource_library(version)
+        elif version == 0:
+            handle_ai_mooc(version)
         else:  # MOOC 或 课堂版
             handle_mooc_or_classroom(version)
         
