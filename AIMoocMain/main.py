@@ -94,7 +94,9 @@ class AIMoocHandler:
 
         if course_info_id:
             study_design_list = self.client.study_design_list(course_info_id, course_id)
-            self.study_record_list = self.client.study_record_list(course_info_id, course_id)
+            self.study_record_list = self.client.study_record_list(
+                course_info_id, course_id
+            )
             for node in study_design_list:
                 parent_id = node.get("id")
                 cell_list = self.client.get_cell_list(
@@ -131,20 +133,18 @@ class AIMoocHandler:
         source_id = node.get("id")
         prefix = " " * ((indent + 1) * 4)  # 每层缩进 4 个空格
 
-        self.logging.info(
-            f"{prefix} 💭 资源: {resource_name} | 类型: {file_type}"
-        )
+        self.logging.info(f"{prefix} 💭 资源: {resource_name} | 类型: {file_type}")
 
         # 跳过作业
         if file_type == "作业":
             self.logging.info(f"{prefix} ✅ 跳过作业")
             return
-        
+
         # 跳过考试
         if file_type == "考试":
             self.logging.info(f"{prefix} ✅ 跳过考试")
             return
-        
+
         # 跳过测验
         if file_type == "测验":
             self.logging.info(f"{prefix} ✅ 跳过测验")
@@ -156,20 +156,18 @@ class AIMoocHandler:
             return
 
         try:
-            # 默认学习总数1：图片
-            total_num = 1
-            # 获取课件信息
-            # course_content = self.client.course_content(source_id)
-            # 不知道应该学习多久，需要调用接口并转换
-
+            # 默认学习总数
+            total_num = random.randint(1, 10)
             course_content = json.loads(node.get("fileUrl"))
             url_short = course_content.get("url")
             # mp3 时长接口无法查询，本地获取
-            if file_type == "mp3":
+            if file_type == "audio":
                 mp3_duration = get_mp3_duration(course_content.get("ossOriUrl"))
                 total_num = int(mp3_duration)
-            if file_type == "zip":
-                total_num = 1
+            elif file_type == "zip":
+                total_num = random.randint(1, 10)
+            elif file_type == "img":
+                total_num = random.randint(1, 10)
             elif url_short:
                 file_status = self.client.upload_file_status(url_short)
                 file_status_args = file_status.get("args")
