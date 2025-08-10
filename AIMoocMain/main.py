@@ -150,6 +150,16 @@ class AIMoocHandler:
             self.logging.info(f"{prefix} ⏭ 跳过测验")
             return
 
+        # 跳过子节点
+        if file_type == "子节点":
+            self.logging.info(f"{prefix} ⏭ 跳过无法展开的子节点")
+            return
+
+        # 跳过文件夹
+        if file_type == "文件夹":
+            self.logging.info(f"{prefix} ⏭ 跳过文件夹")
+            return
+
         # 已完成的课程不再处理
         if source_id in self.study_record_list:
             self.logging.info(f"{prefix} ⏭ 跳过已完成的课程: {resource_name}")
@@ -185,7 +195,7 @@ class AIMoocHandler:
             course_info_id = node.get("courseInfoId")
             study_time = total_num
 
-            wait_time = random.randint(1, 2)
+            wait_time = round(random.uniform(0.5, 1.5), 2)
 
             self.logging.info(
                 f"{prefix} ⏳ 学习数: {total_num}，等待 {wait_time} 秒..."
