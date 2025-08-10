@@ -137,53 +137,55 @@ class AIMoocHandler:
 
         # 跳过作业
         if file_type == "作业":
-            self.logging.info(f"{prefix} ✅ 跳过作业")
+            self.logging.info(f"{prefix} ⏭ 跳过作业")
             return
 
         # 跳过考试
         if file_type == "考试":
-            self.logging.info(f"{prefix} ✅ 跳过考试")
+            self.logging.info(f"{prefix} ⏭ 跳过考试")
             return
 
         # 跳过测验
         if file_type == "测验":
-            self.logging.info(f"{prefix} ✅ 跳过测验")
+            self.logging.info(f"{prefix} ⏭ 跳过测验")
             return
 
         # 已完成的课程不再处理
         if source_id in self.study_record_list:
-            self.logging.info(f"{prefix} ✅ 跳过已完成的课程: {resource_name}")
+            self.logging.info(f"{prefix} ⏭ 跳过已完成的课程: {resource_name}")
             return
 
         try:
             # 默认学习总数
             total_num = random.randint(1, 10)
-            course_content = json.loads(node.get("fileUrl"))
-            url_short = course_content.get("url")
+            course_content = node.get("fileUrl", "")
+            if course_content and course_content.strip() != "":
+                course_content = json.loads(course_content)
+                url_short = course_content.get("url")
             # mp3 时长接口无法查询，本地获取
             if file_type == "audio":
                 mp3_duration = get_mp3_duration(course_content.get("ossOriUrl"))
                 total_num = int(mp3_duration)
-            elif file_type == "zip":
+            elif file_type == "ppt":
                 total_num = random.randint(1, 10)
             elif file_type == "img":
                 total_num = random.randint(1, 10)
+            elif file_type == "图文":
+                total_num = random.randint(1, 10)
             elif url_short:
-                file_status = self.client.upload_file_status(url_short)
-                file_status_args = file_status.get("args")
                 # 视频类型
-                file_status_args_duration = file_status_args.get("duration")
+                file_status_args_duration = course_content.get("duration")
                 # 文件类型
-                file_status_args_has_txt_file = file_status_args.get("has_txt_file")
+                file_status_args_has_txt_file = course_content.get("has_txt_file")
                 if file_status_args_duration:
                     total_num = parse_duration(file_status_args_duration)
                 elif file_status_args_has_txt_file:
-                    total_num = file_status_args.get("page_count")
+                    total_num = course_content.get("page_count")
 
             course_info_id = node.get("courseInfoId")
             study_time = total_num
 
-            wait_time = random.randint(1, 3)
+            wait_time = random.randint(1, 2)
 
             self.logging.info(
                 f"{prefix} ⏳ 学习数: {total_num}，等待 {wait_time} 秒..."

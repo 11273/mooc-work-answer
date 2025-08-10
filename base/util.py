@@ -61,9 +61,12 @@ def parse_duration(duration: str) -> int:
     :param duration: 时间字符串，例如 '00:00:20.1670000' 或 '00:00:31'
     :return: 对应的总秒数（int）
     """
-    h, m, s = duration.split(":")  # 拆分时、分、秒
-    s = float(s)  # 处理可能的毫秒部分
-    return int(float(h) * 3600 + float(m) * 60 + s)  # 转换为整数秒
+    if ':' in str(duration):
+        h, m, s = duration.split(":")  # 拆分时、分、秒
+        s = float(s)  # 处理可能的毫秒部分
+        return int(float(h) * 3600 + float(m) * 60 + s)  # 转换为整数秒
+    else:
+        return int(duration)
 
 
 def get_mp3_duration(mp3_url: str) -> float:
