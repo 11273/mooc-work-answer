@@ -9,7 +9,7 @@ from base.util import parse_duration, get_mp3_duration
 
 
 class AIMoocHandler:
-    def __init__(self, jump_content: str = "", token: str = None):
+    def __init__(self, jump_content: str = "", token: str = None, username: str = None, password: str = None):
         """初始化 API 客户端和日志"""
         # 跳过课程列表
         self.jump_list = []
@@ -19,7 +19,7 @@ class AIMoocHandler:
             self.jump_list = jump_content.split("#")[1:]
 
         # 根据是否提供token选择不同的初始化方式
-        self.client = AIMoocApi(token=token)
+        self.client = AIMoocApi(token=token, username=username, password=password)
 
         self.logging = Logger(__name__).get_log()
         self.start_courses()

@@ -14,12 +14,13 @@ UPLOAD_BASE_URL = "https://urc.icve.com.cn/stage-api"
 
 
 class AIMoocApi(BaseAPIClient):
-    def __init__(self, token: str = None):
+    def __init__(self, token: str = None, username: str = None, password: str = None):
         super().__init__(BASE_URL)
 
         self.token = token  # 如果提供了token，就使用OAuth登录
         self.access_token = None
-
+        self.username = username
+        self.password = password
         self.login()
 
     def login(self) -> None:
@@ -43,7 +44,7 @@ class AIMoocApi(BaseAPIClient):
 
     def _get_sso_token(self) -> Optional[str]:
         """第一步：调用 SSO 登录，获取 token"""
-        login_url = "/data/userLoginV2"
+        login_url = "/data/userLogin"
         payload = {
             "type": 1,
             "userName": self.username,
@@ -55,7 +56,7 @@ class AIMoocApi(BaseAPIClient):
         if not result:
             return None
 
-        token = result.get("token")
+        token = result
         if token:
             logging.debug(f"🔑 获取到 token: {token}")
         return token

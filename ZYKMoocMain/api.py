@@ -47,14 +47,14 @@ class ZYKMoocApi(BaseAPIClient):
 
     def _get_sso_token(self) -> Optional[str]:
         """第一步：调用 SSO 登录，获取 token"""
-        login_url = "/data/userLoginV2"
+        login_url = "/data/userLogin"
         payload = {"type": 1, "userName": self.username, "password": self.password, "webPageSource": 1}
 
         result = self.post(login_url, json=payload, base_url=SSO_URL)
         if not result:
             return None
 
-        token = result.get("token")
+        token = result
         if token:
             logging.debug(f"🔑 获取到 token: {token}")
         return token

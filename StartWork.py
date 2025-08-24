@@ -310,7 +310,7 @@ def handle_ai_mooc(version: int):
     
     logger.info(f"┃🚀 启动{VERSION_OPTIONS[version]}版本┃")
     log_user_config()  # 记录完整配置
-    AIMoocHandler(jump_content=skip_keywords, token=token)
+    AIMoocHandler(jump_content=skip_keywords, token=token, username=username, password=password)
 
 def print_exit_message():
     """打印退出信息"""
