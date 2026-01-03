@@ -67,7 +67,7 @@ python StartWork.py
 
 ### 🔧 环境要求
 
-- **Python**: 3.6 ≤ version < 3.9
+- **Python**: ≥ 3.6
 - **操作系统**: Windows / macOS / Linux
 - **网络**: 稳定的互联网连接
 
