@@ -288,7 +288,7 @@ class OAuthLoginHandler:
                     if 'token' in query_params:
                         token = query_params['token'][0]
                         oauth_handler.token = token
-                        logger.info(f"✅ 成功获取token: {token}")
+                        logger.debug(f"✅ 回调成功，token: {token}")
                         
                         # 发送成功响应
                         self.send_response(200)
@@ -1037,8 +1037,9 @@ class OAuthLoginHandler:
                 self.server = HTTPServer(('', self.port), self.create_request_handler())
                 self.is_running = True
                 
-                logger.info(f"🚀 OAuth登录服务器已启动，端口: {self.port}")
-                logger.info(f"📝 回调地址: http://localhost:{self.port}/login")
+                logger.info(f"🚀 OAuth服务已就绪，端口: {self.port}")
+                logger.debug(f"   回调地址: http://localhost:{self.port}/login")
+                logger.debug(f"   登录URL: https://sso.icve.com.cn/sso/auth?mode=simple&source=2&redirect=http://localhost:{self.port}/login")
                 
                 # 在新线程中运行服务器
                 self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -1075,12 +1076,10 @@ class OAuthLoginHandler:
         redirect_url = f"http://localhost:{self.port}/login"
         login_url = f"https://sso.icve.com.cn/sso/auth?mode=simple&source=2&redirect={redirect_url}"
         
-        logger.info(f"🌐 正在打开登录页面...")
-        logger.info(f"📍 登录URL: {login_url}")
+        logger.info(f"🌐 浏览器已打开，请完成登录...")
         
         try:
             webbrowser.open(login_url)
-            logger.info("✅ 浏览器已打开，请在浏览器中完成登录")
             return True
         except Exception as e:
             logger.error(f"❌ 无法打开浏览器: {e}")
@@ -1089,8 +1088,6 @@ class OAuthLoginHandler:
     
     def wait_for_token(self, timeout=300):
         """等待token获取"""
-        logger.info(f"⏳ 等待登录完成 (超时: {timeout}秒)...")
-        
         start_time = time.time()
         while self.token is None and time.time() - start_time < timeout:
             if not self.is_running:
@@ -1098,10 +1095,9 @@ class OAuthLoginHandler:
             time.sleep(0.5)
         
         if self.token:
-            logger.info(f"✅ 登录成功，获取到token: {self.token}")
             return self.token
         else:
-            logger.error("❌ 登录超时或被中断")
+            logger.error("❌ 登录超时")
             return None
     
     def login(self, timeout=300):
