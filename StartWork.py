@@ -11,7 +11,7 @@ import time
 from time import sleep
 from typing import Optional, Tuple, Dict, Any
 
-import MoocMain.initMooc as MoocInit
+# import MoocMain.initMooc as MoocInit
 import NewMoocMain.init_mooc as NewMoocInit
 from MoocMain.log import Logger
 from ZYKMoocMain.main import ZYKMoocHandler
