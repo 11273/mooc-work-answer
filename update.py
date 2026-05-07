@@ -1,6 +1,4 @@
-import tkinter as tk
 import webbrowser
-from tkinter import messagebox
 
 import requests
 
@@ -48,6 +46,9 @@ def open_download_url(asset_url):
 
 def show_update_prompt(asset_url):
     """显示更新提示弹窗。"""
+    import tkinter as tk
+    from tkinter import messagebox
+    
     root = tk.Tk()
     root.withdraw()  # 隐藏主窗口
 
