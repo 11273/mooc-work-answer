@@ -119,6 +119,8 @@ class AIMoocApi(BaseAPIClient):
             # "courseType": query_type,
             # 1 进行中 2 即将开始 3 已结束
             "queryStatus": flag,
+            # 查询类型
+            "queryType": query_type
         }
         return self.get(endpoint, params=params)
 
