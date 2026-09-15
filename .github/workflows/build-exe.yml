@@ -51,36 +51,6 @@ jobs:
             echo "PREV_TAG=" >> $GITHUB_ENV
           fi
 
-      - name: 生成更新日志
-        if: matrix.platform == 'windows'
-        shell: bash
-        run: |
-          # 生成唯一的访问统计ID（移除点和特殊字符）
-          VIEW_COUNTER_ID=$(echo "11273-mooc-work-answer-${{ env.TAG_NAME }}" | sed 's/[^a-zA-Z0-9-]/-/g')
-          
-          badge1="[![GitHub Release](https://img.shields.io/github/v/release/11273/mooc-work-answer?style=flat-square&logo=github&color=blue)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
-          badge2="[![下载统计](https://img.shields.io/github/downloads/11273/mooc-work-answer/${{ env.TAG_NAME }}/total?style=flat-square&logo=github&color=green)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
-          badge3="[![访问统计](https://komarev.com/ghpvc/?username=${VIEW_COUNTER_ID}&label=Views&style=flat-square&color=brightgreen)](https://github.com/11273/mooc-work-answer/releases/tag/${{ env.TAG_NAME }})"
-          header="## 🚀 版本更新 ${{ env.TAG_NAME }}"
-          
-          # 获取提交日志并格式化 - 使用更可靠的方法
-          if [ "${{ env.PREV_TAG }}" ]; then
-            # 使用标签之间的提交范围，确保包含所有提交
-            log=$(git rev-list ${{ env.PREV_TAG }}..${{ env.TAG_NAME }} --pretty=format:"- %s" --no-merges | grep "^-" | head -20)
-            # 如果上面的命令没有结果，回退到原方法
-            if [ -z "$log" ]; then
-              log=$(git log ${{ env.PREV_TAG }}..HEAD --pretty=format:"- %s" --no-merges | head -20)
-            fi
-          else
-            log=$(git log --pretty=format:"- %s" --no-merges | head -10)
-          fi
-          
-          # 生成发布说明
-          platforms="### 📦 支持平台\n- 🪟 **Windows**: 支持 Windows 7/8/10/11 (x64)\n- 🍎 **macOS**: 支持 macOS 10.14+ (Intel & Apple Silicon)\n- 🐧 **Linux**: 支持主流 Linux 发行版 (x64)"
-          changelog="${badge1} ${badge2} ${badge3}\n\n${header}\n\n### 📋 更新内容\n${log}\n\n${platforms}\n\n### 💾 下载说明\n- **Windows**: 直接下载 \`.exe\` 文件运行\n- **macOS**: 直接下载可执行文件，通过终端运行\n- **Linux**: 直接下载可执行文件运行\n\n### 🔧 使用方法\n1. 根据您的系统下载对应版本（无需解压）\n2. **Windows**: 双击运行 \`.exe\` 文件\n3. **macOS**: 打开终端，拖拽文件到终端窗口，然后按回车\n4. **Linux**: 在终端中运行 \`./filename\`\n5. 按照提示输入账号信息，选择需要的功能开始使用\n\n### 💡 macOS 使用提示\n- 下载后如果出现权限错误，先运行: \`chmod +x filename\`\n- 然后直接拖拽文件到终端窗口即可运行\n- 或者在终端中 cd 到文件所在目录，然后运行 \`./filename\`"
-          
-          echo -e "$changelog" > changelog.txt
-
       - name: 注入环境变量 (Spec文件)
         if: matrix.platform == 'windows'
         uses: NicoG60/simple-template-renderer@v1
@@ -220,6 +190,8 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 下载所有构建产物
         uses: actions/download-artifact@v4
@@ -251,32 +223,16 @@ jobs:
           ls -la
 
       - name: 获取更新日志
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
-          # 重新生成更新日志（因为需要在release job中使用）
-          TAG_NAME=${{github.ref_name}}
-          if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
-            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)
-            # 使用标签之间的提交范围，确保包含所有提交
-            log=$(git rev-list ${PREV_TAG}..${TAG_NAME} --pretty=format:"- %s" --no-merges | grep "^-" | head -20)
-            # 如果上面的命令没有结果，回退到原方法
-            if [ -z "$log" ]; then
-              log=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges | head -20)
-            fi
-          else
-            log=$(git log --pretty=format:"- %s" --no-merges | head -10)
-          fi
-          
-          # 生成唯一的访问统计ID（移除点和特殊字符）
-          VIEW_COUNTER_ID=$(echo "11273-mooc-work-answer-${TAG_NAME}" | sed 's/[^a-zA-Z0-9-]/-/g')
-          
-          badge1="[![GitHub Release](https://img.shields.io/github/v/release/11273/mooc-work-answer?style=flat-square&logo=github&color=blue)](https://github.com/11273/mooc-work-answer/releases/tag/${TAG_NAME})"
-          badge2="[![下载统计](https://img.shields.io/github/downloads/11273/mooc-work-answer/${TAG_NAME}/total?style=flat-square&logo=github&color=green)](https://github.com/11273/mooc-work-answer/releases/tag/${TAG_NAME})"
-          badge3="[![访问统计](https://komarev.com/ghpvc/?username=${VIEW_COUNTER_ID}&label=Views&style=flat-square&color=brightgreen)](https://github.com/11273/mooc-work-answer/releases/tag/${TAG_NAME})"
-          header="## 🚀 版本更新 ${TAG_NAME}"
-          platforms="### 📦 支持平台\n- 🪟 **Windows**: 支持 Windows 7/8/10/11 (x64)\n- 🍎 **macOS**: 支持 macOS 10.14+ (Intel & Apple Silicon)\n- 🐧 **Linux**: 支持主流 Linux 发行版 (x64)"
-          changelog="${badge1} ${badge2} ${badge3}\n\n${header}\n\n### 📋 更新内容\n${log}\n\n${platforms}\n\n### 💾 下载说明\n- **Windows**: 直接下载 \`.exe\` 文件运行\n- **macOS**: 直接下载可执行文件，通过终端运行\n- **Linux**: 直接下载可执行文件运行\n\n### 🔧 使用方法\n1. 根据您的系统下载对应版本（无需解压）\n2. **Windows**: 双击运行 \`.exe\` 文件\n3. **macOS**: 打开终端，拖拽文件到终端窗口，然后按回车\n4. **Linux**: 在终端中运行 \`./filename\`\n5. 按照提示输入账号信息，选择需要的功能开始使用\n\n### 💡 macOS 使用提示\n- 下载后如果出现权限错误，先运行: \`chmod +x filename\`\n- 然后直接拖拽文件到终端窗口即可运行\n- 或者在终端中 cd 到文件所在目录，然后运行 \`./filename\`"
-          
-          echo -e "$changelog" > changelog.txt
+          PREV_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+          bash .github/scripts/generate-release-notes.sh \
+            "${TAG_NAME}" \
+            changelog.txt \
+            "${PREV_TAG}"
+          cat changelog.txt
 
       - name: 🚀 创建多平台发布
         id: create_release
