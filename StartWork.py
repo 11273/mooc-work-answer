@@ -77,6 +77,13 @@ EXPORT_CATEGORY_OPTIONS = {
     3: "仅测验"
 }
 
+# 导出文档格式
+EXPORT_FORMAT_OPTIONS = {
+    1: "Markdown（.md）",
+    2: "Word（.docx）",
+    3: "Markdown + Word",
+}
+
 # ****************************************** 初始化 ******************************************
 
 logger = Logger(__name__).get_log()
@@ -272,6 +279,32 @@ def get_course_selection(course_rows: list) -> list:
         for i, c in enumerate(selected, start=1):
             logger.info(f'    ✔ [{i}] {c.get("courseName", "")}')
         return selected
+
+def get_export_format_choice() -> str:
+    """选择导出文档格式：md / docx / both"""
+    print_section_header("导出格式", "选择题目导出的文档格式")
+    for key, value in EXPORT_FORMAT_OPTIONS.items():
+        logger.info(f'  {key}. {value}')
+    logger.info('=' * BORDER_WIDTH)
+
+    while True:
+        try:
+            sleep(0.2)
+            raw = input(f'* 请选择格式 [1-{len(EXPORT_FORMAT_OPTIONS)}] (默认1 Markdown): ').strip() or '1'
+            choice = int(raw)
+            if choice == 1:
+                fmt = "md"
+            elif choice == 2:
+                fmt = "docx"
+            elif choice == 3:
+                fmt = "both"
+            else:
+                logger.warning(f'❌ 请输入 1-{len(EXPORT_FORMAT_OPTIONS)} 之间的数字')
+                continue
+            record_config("导出格式", f"{choice} - {EXPORT_FORMAT_OPTIONS[choice]}")
+            return fmt
+        except ValueError:
+            logger.warning('❌ 请输入有效的数字')
 
 def get_quiz_export_mode() -> str:
     """获取章节测验导出模式"""
@@ -544,6 +577,9 @@ def handle_export_questions(version: int):
         logger.error("❌ 未选择课程，已取消导出")
         return
 
+    # 选择课程后选择 md / word
+    export_format = get_export_format_choice()
+
     category_choice = get_export_category_choice()
     # categoryId: 1=作业 2=考试 3=测验（与 EXPORT_CATEGORY_OPTIONS 键一致）
     category_ids = [1, 2, 3] if category_choice == 0 else [category_choice]
@@ -564,8 +600,9 @@ def handle_export_questions(version: int):
     logger.info(f"┃🚀 启动题目导出（{VERSION_OPTIONS[version]}）┃")
     # 过程/配置日志仅 -dev；正式模式安静导出
     if IS_DEV:
-        logger.info("📦 输出目录: tiku/<课程名>/（md + json + raw + summary，-dev）")
+        logger.info("📦 输出目录: tiku/<课程名>/")
         logger.info(f"⚙️ 测验模式: {quiz_mode}")
+        logger.info(f"📄 导出格式: {export_format}")
         log_user_config()
 
     QuizExportHandler(
@@ -576,6 +613,7 @@ def handle_export_questions(version: int):
         selected_exam_ids=selected_exam_ids,
         output_dir="tiku",
         dev_mode=IS_DEV,
+        export_format=export_format,
     )
 
 def print_exit_message():

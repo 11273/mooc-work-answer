@@ -8,6 +8,7 @@ dependencies = [
     "lxml==6.1.0",
     "pycryptodome~=3.18.0",
     "requests==2.31.0",
+    "python-docx~=1.1.0",
 ]
 
 [tool.uv]

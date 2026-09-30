@@ -45,6 +45,17 @@ QUIZ_MODE_LABEL = {
     QUIZ_MODE_MERGED: "所有章节测验（合并为一个文件）",
 }
 
+# 导出文档格式
+EXPORT_FORMAT_MD = "md"
+EXPORT_FORMAT_DOCX = "docx"
+EXPORT_FORMAT_BOTH = "both"
+
+EXPORT_FORMAT_LABEL = {
+    EXPORT_FORMAT_MD: "Markdown（.md）",
+    EXPORT_FORMAT_DOCX: "Word（.docx）",
+    EXPORT_FORMAT_BOTH: "Markdown + Word",
+}
+
 
 def parse_index_input(raw: str, max_n: int) -> Optional[List[int]]:
     """解析课程/测验多选输入：all / 1,3 / 1-3
@@ -333,6 +344,51 @@ def _answer_from_options(options: List[Dict[str, Any]]) -> str:
     return ",".join(correct) if correct else ""
 
 
+def _is_judgement_type(type_raw: Any, type_label: str = "") -> bool:
+    """是否判断题（typeId=3）"""
+    if type_label == "判断题":
+        return True
+    return type_raw is not None and str(type_raw).strip() in ("3", "判断题")
+
+
+def _judgement_answer_text(raw: Any) -> str:
+    """判断题答案规范成「正确/错误」
+
+    平台约定（实测 record.answer）：1=正确，0=错误。
+    兼容 true/false、对/错 等写法；未知原样返回。
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, bool):
+        return "正确" if raw else "错误"
+    if isinstance(raw, (int, float)):
+        if int(raw) == 1:
+            return "正确"
+        if int(raw) == 0:
+            return "错误"
+        return str(raw)
+    text = clean_html_text(str(raw)).strip()
+    if not text:
+        return ""
+    if text in ("正确", "对", "√", "✓", "是"):
+        return "正确"
+    if text in ("错误", "错", "×", "否"):
+        return "错误"
+    u = text.upper()
+    if u in ("1", "TRUE", "T", "YES", "Y"):
+        return "正确"
+    if u in ("0", "FALSE", "F", "NO", "N"):
+        return "错误"
+    return text
+
+
+def _normalize_answer(raw: Any, options: Optional[List[Dict[str, Any]]], *, judgement: bool) -> str:
+    """按题型规范答案：判断题→正确/错误；其余→A,B,C 字母"""
+    if judgement:
+        return _judgement_answer_text(raw)
+    return _answer_letters(raw, options)
+
+
 def _answer_letters(raw: Any, options: Optional[List[Dict[str, Any]]] = None) -> str:
     """把 answer 字段规范成 A,B,C 形式
 
@@ -423,6 +479,7 @@ def _merge_record_answers(
         if not raw:
             continue
         options = q.get("options") or []
+        judgement = _is_judgement_type(q.get("type_raw"), q.get("type") or "")
 
         # 正确答案：显式字段优先；getInfo 的 answer 通常就是标准答案
         std = clean_html_text(_first(
@@ -431,12 +488,12 @@ def _merge_record_answers(
             "trueAnswer", "da", "xsda", "std_answer", "right", default="",
         ))
         if std:
-            std = _answer_letters(std, options)
+            std = _normalize_answer(std, options, judgement=judgement)
 
         if not std:
             ans_field = _first(raw, "answer", "trueAnswer", "realAnswer", default=None)
             if ans_field not in (None, ""):
-                std = _answer_letters(ans_field, options)
+                std = _normalize_answer(ans_field, options, judgement=judgement)
 
         if not std:
             rec_opts = parse_options(_first(
@@ -451,7 +508,7 @@ def _merge_record_answers(
             "userAnswer", "my_answer", "fillBlankRecordAnswer", default="",
         ))
         if my:
-            my = _answer_letters(my, options)
+            my = _normalize_answer(my, options, judgement=judgement)
 
         changed = False
         if std and not q.get("std_answer"):
@@ -500,8 +557,9 @@ def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         raw, "stdAnswer", "correctAnswer", "rightAnswer", "answerContent",
         "trueAnswer", "da", "xsda", default=""
     ))
+    judgement = _is_judgement_type(type_raw, type_label)
     if std_answer:
-        std_answer = _answer_letters(std_answer, options)
+        std_answer = _normalize_answer(std_answer, options, judgement=judgement)
 
     # paper 未提交时 answer 多为 null；已提交时可能是「我的答案」，不能当标准答案
     my_answer = clean_html_text(_first(
@@ -510,7 +568,11 @@ def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
     if not my_answer:
         rec = _first(raw, "recordAnswer", "myAnswer", "studentAnswer", "answer", default=None)
         if rec not in (None, ""):
-            my_answer = _answer_letters(rec, options)
+            # 判断题 paper.answer 在未提交时可能为 null，不在此误用 0/1；有 stuAnswer 才填
+            if judgement and rec in (0, 1, "0", "1", True, False):
+                my_answer = ""
+            else:
+                my_answer = _normalize_answer(rec, options, judgement=judgement)
 
     # 选项里已标记正确答案时，汇总到 std_answer
     if not std_answer and options:
@@ -566,6 +628,343 @@ def question_to_markdown(q: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _question_heading(q: Dict[str, Any]) -> str:
+    head = f"{q.get('index', '')}. {q.get('type', '')}"
+    if q.get("score") not in (None, ""):
+        head += f"（{q['score']}分）"
+    return head
+
+
+# Word 排版：封面页字体较大；正文（含章节）统一小字号
+_DOCX_FONT = "微软雅黑"
+_DOCX_COVER_TITLE_PT = 16
+_DOCX_COVER_META_PT = 12
+_DOCX_BODY_PT = 9
+_DOCX_CHAPTER_PT = 12
+
+
+def _apply_docx_font(run, size_pt: float, bold: bool = False) -> None:
+    from docx.shared import Pt
+    from docx.oxml.ns import qn
+
+    run.font.name = _DOCX_FONT
+    run.font.size = Pt(size_pt)
+    run.bold = bold
+    try:
+        rpr = run._element.get_or_add_rPr()
+        rfonts = rpr.get_or_add_rFonts()
+        rfonts.set(qn("w:eastAsia"), _DOCX_FONT)
+        rfonts.set(qn("w:ascii"), _DOCX_FONT)
+        rfonts.set(qn("w:hAnsi"), _DOCX_FONT)
+    except Exception:
+        pass
+
+
+def _set_normal_style(doc) -> None:
+    """Normal 样式：小字号微软雅黑；段间距/行距压紧，提高每页题量。"""
+    from docx.shared import Pt
+
+    style = doc.styles["Normal"]
+    style.font.name = _DOCX_FONT
+    style.font.size = Pt(_DOCX_BODY_PT)
+    # Word 默认段后约 8pt、行距 1.15，会把每题撑散
+    pf = style.paragraph_format
+    pf.space_before = Pt(0)
+    pf.space_after = Pt(0)
+    pf.line_spacing = 1.0
+    try:
+        from docx.oxml.ns import qn
+
+        rpr = style.element.get_or_add_rPr()
+        rfonts = rpr.get_or_add_rFonts()
+        rfonts.set(qn("w:eastAsia"), _DOCX_FONT)
+        rfonts.set(qn("w:ascii"), _DOCX_FONT)
+        rfonts.set(qn("w:hAnsi"), _DOCX_FONT)
+    except Exception:
+        pass
+
+
+def _configure_section(section) -> None:
+    from docx.shared import Cm
+
+    section.top_margin = Cm(1.5)
+    section.bottom_margin = Cm(1.5)
+    section.left_margin = Cm(1.8)
+    section.right_margin = Cm(1.8)
+
+
+def _add_body_para(
+    doc,
+    text: str,
+    *,
+    bold: bool = False,
+    keep_with_next: bool = False,
+    space_before_pt: float = 0,
+):
+    """正文段落：小字号；keep_with_next + keep_together，避免题目被分页切割。"""
+    from docx.shared import Pt
+
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    _apply_docx_font(run, _DOCX_BODY_PT, bold=bold)
+    pf = p.paragraph_format
+    pf.keep_with_next = keep_with_next
+    pf.keep_together = True
+    pf.space_before = Pt(space_before_pt)
+    pf.space_after = Pt(0)
+    pf.line_spacing = 1.0
+    return p
+
+
+def _append_question_to_doc(doc, q: Dict[str, Any]) -> None:
+    """把一道题写成一组紧凑段落；除最后一段外 keep_with_next，整题尽量同页。"""
+    # 题间仅留少量空隙；题内段落间距为 0
+    gap = 4.0
+    parts: List[tuple] = [(_question_heading(q), True, gap)]
+    parts.append((q.get("title") or "（空）", True, 0.0))
+    if q.get("options"):
+        for opt in q["options"]:
+            text = opt.get("text") or ""
+            parts.append((f"{opt.get('label')}. {text}", bool(opt.get("is_answer")), 0.0))
+    if q.get("std_answer"):
+        ans = f"正确答案：{q['std_answer']}"
+        if q.get("my_answer"):
+            ans += f"　|　我的答案：{q['my_answer']}"
+        parts.append((ans, True, 0.0))
+    else:
+        ans = "答案：（平台未返回）"
+        if q.get("my_answer"):
+            ans += f"　|　我的答案：{q['my_answer']}"
+        parts.append((ans, False, 0.0))
+    if q.get("analyse"):
+        parts.append((f"解析：{q['analyse']}", False, 0.0))
+
+    last = len(parts) - 1
+    for i, (text, bold, space_before) in enumerate(parts):
+        _add_body_para(
+            doc,
+            text,
+            bold=bold,
+            keep_with_next=i < last,
+            space_before_pt=space_before,
+        )
+
+
+def _set_page_number_start(section, start: int = 1) -> None:
+    """正文分节页码从 start 起算（物理第 3 页显示为 1）。"""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    sect_pr = section._sectPr
+    for el in sect_pr.findall(qn("w:pgNumType")):
+        sect_pr.remove(el)
+    pg_num = OxmlElement("w:pgNumType")
+    pg_num.set(qn("w:start"), str(start))
+    sect_pr.append(pg_num)
+
+
+def _continue_page_number(section) -> None:
+    """后续章节分节：去掉复制来的 pgNumType，页码沿用上一节连续编号。"""
+    from docx.oxml.ns import qn
+
+    sect_pr = section._sectPr
+    for el in sect_pr.findall(qn("w:pgNumType")):
+        sect_pr.remove(el)
+
+
+def _clear_footer(section) -> None:
+    """封面/目录页脚不显示页码。"""
+    section.footer.is_linked_to_previous = False
+    footer = section.footer
+    for p in footer.paragraphs:
+        for r in list(p.runs):
+            r._element.getparent().remove(r._element)
+
+
+def _add_footer_page_number(section) -> None:
+    """页脚居中插入 PAGE 域。"""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    section.footer.is_linked_to_previous = False
+    footer = section.footer
+    p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    _apply_docx_font(run, _DOCX_BODY_PT)
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = " PAGE "
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    run._r.append(fld_begin)
+    run._r.append(instr)
+    run._r.append(fld_end)
+
+
+def _set_outline_level(paragraph, level: int = 0) -> None:
+    """章节标题写入大纲级别，供 Word 目录域抓取。"""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    p_pr = paragraph._p.get_or_add_pPr()
+    for el in p_pr.findall(qn("w:outlineLvl")):
+        p_pr.remove(el)
+    outline = OxmlElement("w:outlineLvl")
+    outline.set(qn("w:val"), str(level))
+    p_pr.append(outline)
+
+
+def _enable_update_fields(doc) -> None:
+    """打开文档时自动更新域（目录页码）。"""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    settings = doc.settings.element
+    for el in settings.findall(qn("w:updateFields")):
+        settings.remove(el)
+    el = OxmlElement("w:updateFields")
+    el.set(qn("w:val"), "true")
+    settings.append(el)
+
+
+def _append_toc(doc, title: str, question_groups: List[Any]) -> None:
+    """第 2 页：Word 目录域（章节 + 页码，打开时自动更新）。"""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt
+
+    toc_title = doc.add_paragraph()
+    run = toc_title.add_run("目录")
+    _apply_docx_font(run, _DOCX_COVER_TITLE_PT, bold=True)
+    toc_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    toc_title.paragraph_format.space_after = Pt(12)
+
+    entries = [h for h, _ in question_groups if h]
+    if not entries:
+        p = doc.add_paragraph()
+        _apply_docx_font(p.add_run(title), _DOCX_COVER_META_PT)
+        return
+
+    # TOC 域：\o 标题级别 + \u 大纲级别；dirty 让 Word/WPS 打开时刷新页码
+    # 域结果用多段落 + w:br，未更新前也能看到章节列表
+    p = doc.add_paragraph()
+    r_begin = p.add_run()
+    _apply_docx_font(r_begin, _DOCX_COVER_META_PT)
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    fld_begin.set(qn("w:dirty"), "true")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = r'TOC \o "1-1" \h \z \u'
+    fld_sep = OxmlElement("w:fldChar")
+    fld_sep.set(qn("w:fldCharType"), "separate")
+    r_begin._r.append(fld_begin)
+    r_begin._r.append(instr)
+    r_begin._r.append(fld_sep)
+
+    r_result = p.add_run()
+    _apply_docx_font(r_result, _DOCX_COVER_META_PT)
+    for i, heading in enumerate(entries):
+        if i > 0:
+            br = OxmlElement("w:br")
+            r_result._r.append(br)
+        t = OxmlElement("w:t")
+        t.set(qn("xml:space"), "preserve")
+        t.text = heading
+        r_result._r.append(t)
+
+    r_end = p.add_run()
+    _apply_docx_font(r_end, _DOCX_COVER_META_PT)
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    r_end._r.append(fld_end)
+
+
+def write_questions_docx(
+    path: Path,
+    title: str,
+    meta_lines: List[str],
+    question_groups: List[Any],
+) -> None:
+    """题目导出为 Word（.docx）
+
+    排版：
+    - 第 1 页：封面（标题 + meta），字号较大，无页码
+    - 第 2 页：目录（Word TOC 域，章节 + 页码；打开文档时自动更新）
+    - 第 3 页起：正文，页码从 1 开始；章节奇数页起、正文字号小
+    - 题目各段 keep_with_next / keep_together，空间不够时整题移到下一页
+
+    question_groups: [(section_heading|None, questions), ...]
+    """
+    try:
+        from docx import Document
+        from docx.enum.section import WD_SECTION_START
+    except ImportError as e:
+        raise RuntimeError(
+            "缺少 python-docx，无法导出 Word。请执行: uv add python-docx"
+        ) from e
+
+    doc = Document()
+    _set_normal_style(doc)
+    _configure_section(doc.sections[0])
+    _clear_footer(doc.sections[0])
+
+    # —— 第 1 页：封面 ——
+    cover_title = doc.add_paragraph()
+    title_run = cover_title.add_run(title)
+    _apply_docx_font(title_run, _DOCX_COVER_TITLE_PT, bold=True)
+    cover_title.alignment = 1  # center
+    for line in meta_lines:
+        p = doc.add_paragraph()
+        run = p.add_run(line)
+        _apply_docx_font(run, _DOCX_COVER_META_PT)
+
+    # —— 第 2 页：目录 ——
+    toc_section = doc.add_section(WD_SECTION_START.NEW_PAGE)
+    _configure_section(toc_section)
+    _clear_footer(toc_section)
+    _append_toc(doc, title, question_groups)
+
+    # —— 第 3 页起：正文，页码从 1 开始；章节奇数页 ——
+    for idx, (section_heading, questions) in enumerate(question_groups):
+        section = doc.add_section(WD_SECTION_START.ODD_PAGE)
+        _configure_section(section)
+        if idx == 0:
+            # 物理第 3 页（封面 1 + 目录 2）显示页码 1
+            _set_page_number_start(section, 1)
+            _add_footer_page_number(section)
+        else:
+            # 后续章节页码连续，不重置
+            _continue_page_number(section)
+
+        if section_heading:
+            from docx.shared import Pt
+
+            hp = doc.add_paragraph()
+            run = hp.add_run(section_heading)
+            _apply_docx_font(run, _DOCX_CHAPTER_PT, bold=True)
+            hpf = hp.paragraph_format
+            hpf.keep_with_next = True
+            hpf.keep_together = True
+            hpf.space_before = Pt(0)
+            hpf.space_after = Pt(2)
+            hpf.line_spacing = 1.0
+            # 大纲级别 1：供目录域抓取章节页码
+            _set_outline_level(hp, 0)
+
+        for q in questions:
+            _append_question_to_doc(doc, q)
+
+    _enable_update_fields(doc)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(str(path))
+
+
 class QuizExportHandler:
     """按所选课程导出作业/测验/考试题目"""
 
@@ -582,14 +981,18 @@ class QuizExportHandler:
         quiz_mode: str = QUIZ_MODE_PER_CHAPTER,
         selected_exam_ids: Optional[List[str]] = None,
         dev_mode: bool = False,
+        export_format: str = EXPORT_FORMAT_MD,
     ):
         self.logging = Logger(__name__).get_log()
         self.client = client or AIMoocApi(token=token, username=username, password=password)
         self.category_ids = category_ids or [1, 2, 3]
         self.quiz_mode = quiz_mode if 3 in self.category_ids else QUIZ_MODE_PER_CHAPTER
         self.selected_exam_ids = set(selected_exam_ids or [])
-        # -dev：额外输出 summary / *.json / raw/；正式模式只写复习用 md
+        # -dev：额外输出 summary / *.json / raw/；正式模式只写复习用文档
         self.dev_mode = bool(dev_mode)
+        if export_format not in (EXPORT_FORMAT_MD, EXPORT_FORMAT_DOCX, EXPORT_FORMAT_BOTH):
+            export_format = EXPORT_FORMAT_MD
+        self.export_format = export_format
         # 题库目录：tiku/<课程名>/，重复导出覆盖同名文件
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -624,6 +1027,11 @@ class QuizExportHandler:
         if self.dev_mode:
             self.logging.info(msg)
 
+    def _wants(self, fmt: str) -> bool:
+        if self.export_format == EXPORT_FORMAT_BOTH:
+            return True
+        return self.export_format == fmt
+
     # -------------------- 主流程 --------------------
 
     def start_export(self) -> None:
@@ -636,6 +1044,9 @@ class QuizExportHandler:
             self._info("➕➕➕ 开始导出题目 ➕➕➕")
             self._info(
                 f"⚙️ 测验模式: {QUIZ_MODE_LABEL.get(self.quiz_mode, self.quiz_mode)}"
+            )
+            self._info(
+                f"📄 导出格式: {EXPORT_FORMAT_LABEL.get(self.export_format, self.export_format)}"
             )
             if self.selected_exam_ids:
                 self._info(f"🎯 已选章节测验: {len(self.selected_exam_ids)} 份")
@@ -876,24 +1287,33 @@ class QuizExportHandler:
             )
 
         source_label = ANSWER_SOURCE_LABEL.get(answer_source, answer_source)
-        md_lines = [
-            f"# {data['course']} · {paper_name}",
-            "",
+        title = f"{data['course']} · {paper_name}"
+        meta_lines = [
             f"- 分类: {category_name}",
             f"- 题目数: {len(questions)}",
             f"- 正确答案: {answered}/{len(questions)}",
         ]
         if my_answered > 0:
-            md_lines.append(f"- 我的答案: {my_answered}/{len(questions)}")
+            meta_lines.append(f"- 我的答案: {my_answered}/{len(questions)}")
         if self.dev_mode:
-            md_lines.append(f"- 答案来源: {source_label}")
-            md_lines.append(f"- 导出时间: {payload['exported_at']}")
-        md_lines.extend(["", "---", ""])
-        for q in questions:
-            md_lines.append(question_to_markdown(q))
-            md_lines.append("")
-        md_path = course_dir / f"{base}.md"
-        md_path.write_text("\n".join(md_lines), encoding="utf-8")
+            meta_lines.append(f"- 答案来源: {source_label}")
+            meta_lines.append(f"- 导出时间: {payload['exported_at']}")
+
+        written = []
+        md_path = None
+        docx_path = None
+        if self._wants(EXPORT_FORMAT_MD):
+            md_lines = [f"# {title}", ""] + meta_lines + ["", "---", ""]
+            for q in questions:
+                md_lines.append(question_to_markdown(q))
+                md_lines.append("")
+            md_path = course_dir / f"{base}.md"
+            md_path.write_text("\n".join(md_lines), encoding="utf-8")
+            written.append(md_path.name)
+        if self._wants(EXPORT_FORMAT_DOCX):
+            docx_path = course_dir / f"{base}.docx"
+            write_questions_docx(docx_path, title, meta_lines, [(None, questions)])
+            written.append(docx_path.name)
 
         self.summary_rows.append({
             "course": data["course"],
@@ -905,11 +1325,12 @@ class QuizExportHandler:
             "my_answered_count": my_answered,
             "answer_source": answer_source,
             "json": str(json_path) if json_path else "",
-            "markdown": str(md_path),
+            "markdown": str(md_path) if md_path else "",
+            "docx": str(docx_path) if docx_path else "",
         })
         self._info(
             f"    ✅ [{category_name}] {paper_name}: {len(questions)} 题 "
-            f"（答案 {answered}，我的 {my_answered}） → {md_path.name}"
+            f"（答案 {answered}，我的 {my_answered}） → {', '.join(written) or '（无输出）'}"
         )
 
     def export_merged_quizzes(
@@ -983,36 +1404,49 @@ class QuizExportHandler:
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
             )
 
-        md_lines = [
-            f"# {course_name} · 全部章节测验",
-            "",
+        title = f"{course_name} · 全部章节测验"
+        meta_lines = [
             f"- 分类: {category_name}",
             f"- 章节数: {len(sections)}",
             f"- 题目数: {total}",
             f"- 正确答案: {answered}/{total}",
         ]
         if my_answered > 0:
-            md_lines.append(f"- 我的答案: {my_answered}/{total}")
+            meta_lines.append(f"- 我的答案: {my_answered}/{total}")
         if self.dev_mode:
-            md_lines.append(f"- 答案来源: 作答记录接口/试卷接口（见 summary）")
-            md_lines.append(f"- 导出时间: {exported_at}")
-        md_lines.extend(["", "---", ""])
+            meta_lines.append(f"- 答案来源: 作答记录接口/试卷接口（见 summary）")
+            meta_lines.append(f"- 导出时间: {exported_at}")
+
+        groups = []
         for sec in sections:
-            md_lines.append(
-                f"## {sec['paper_name']}（{sec['question_count']}题，"
+            heading = (
+                f"{sec['paper_name']}（{sec['question_count']}题，"
                 f"答案 {sec['answered_count']}）"
             )
-            md_lines.append("")
-            for q in sec["questions"]:
-                # 小节内重新编号，阅读更清晰
-                local_q = dict(q)
-                local_q["index"] = q.get("index", 0)
-                md_lines.append(question_to_markdown(local_q))
+            groups.append((heading, sec["questions"]))
+
+        written = []
+        md_path = None
+        docx_path = None
+        if self._wants(EXPORT_FORMAT_MD):
+            md_lines = [f"# {title}", ""] + meta_lines + ["", "---", ""]
+            for heading, questions in groups:
+                md_lines.append(f"## {heading}")
                 md_lines.append("")
-            md_lines.append("---")
-            md_lines.append("")
-        md_path = course_dir / f"{base}.md"
-        md_path.write_text("\n".join(md_lines), encoding="utf-8")
+                for q in questions:
+                    local_q = dict(q)
+                    local_q["index"] = q.get("index", 0)
+                    md_lines.append(question_to_markdown(local_q))
+                    md_lines.append("")
+                md_lines.append("---")
+                md_lines.append("")
+            md_path = course_dir / f"{base}.md"
+            md_path.write_text("\n".join(md_lines), encoding="utf-8")
+            written.append(md_path.name)
+        if self._wants(EXPORT_FORMAT_DOCX):
+            docx_path = course_dir / f"{base}.docx"
+            write_questions_docx(docx_path, title, meta_lines, groups)
+            written.append(docx_path.name)
 
         self.summary_rows.append({
             "course": course_name,
@@ -1024,11 +1458,12 @@ class QuizExportHandler:
             "my_answered_count": my_answered,
             "answer_source": "merged",
             "json": str(json_path) if json_path else "",
-            "markdown": str(md_path),
+            "markdown": str(md_path) if md_path else "",
+            "docx": str(docx_path) if docx_path else "",
         })
         self._info(
             f"    ✅ [{category_name}] 全部章节测验（{len(sections)}份）: "
-            f"{total} 题（答案 {answered}） → {md_path.name}"
+            f"{total} 题（答案 {answered}） → {', '.join(written) or '（无输出）'}"
         )
         return True
 
