@@ -580,6 +580,9 @@ def handle_export_questions(version: int):
     # 选择课程后选择 md / word
     export_format = get_export_format_choice()
 
+    # 「我的答案」默认不写入文档，需确认
+    include_my_answer = get_user_choice("导出文档写入我的答案", default="n")
+
     category_choice = get_export_category_choice()
     # categoryId: 1=作业 2=考试 3=测验（与 EXPORT_CATEGORY_OPTIONS 键一致）
     category_ids = [1, 2, 3] if category_choice == 0 else [category_choice]
@@ -614,6 +617,7 @@ def handle_export_questions(version: int):
         output_dir="tiku",
         dev_mode=IS_DEV,
         export_format=export_format,
+        include_my_answer=include_my_answer,
     )
 
 def print_exit_message():

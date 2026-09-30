@@ -461,6 +461,44 @@ def _lookup_record_question(
     return {}
 
 
+def _pick_task_ids_for_info(
+    paper_record: Dict[str, Any],
+    student_records: Optional[List[Dict[str, Any]]] = None,
+) -> List[str]:
+    """选出 getInfo 可用的 taskId 列表（已交卷优先）
+
+    paper.taskExamRecord 常为 status=0 的未提交草稿，stuAnswer 为空；
+    平台「我的答案」在 getStudentRecordByExamId 的已交卷记录里。
+    """
+    draft_id = str(_first(paper_record, "id", "taskId", "recordId", default="") or "")
+    submitted_ids: List[str] = []
+    if isinstance(student_records, list):
+        submitted = [
+            r for r in student_records
+            if isinstance(r, dict) and str(r.get("status") or "") == "2"
+        ]
+        # 多次作答：按提交时间倒序，取最近一次优先
+        def _sort_key(r: Dict[str, Any]):
+            return str(
+                r.get("studentSubmitTime")
+                or r.get("updateTime")
+                or r.get("createTime")
+                or ""
+            )
+
+        submitted.sort(key=_sort_key, reverse=True)
+        for r in submitted:
+            rid = str(r.get("id") or r.get("taskId") or "")
+            if rid and rid not in submitted_ids:
+                submitted_ids.append(rid)
+
+    task_ids: List[str] = []
+    for rid in submitted_ids + ([draft_id] if draft_id else []):
+        if rid and rid not in task_ids:
+            task_ids.append(rid)
+    return task_ids
+
+
 def _merge_record_answers(
     questions: List[Dict[str, Any]],
     info_questions: List[Dict[str, Any]],
@@ -597,8 +635,8 @@ def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
     }
 
 
-def question_to_markdown(q: Dict[str, Any]) -> str:
-    """单题转 Markdown"""
+def question_to_markdown(q: Dict[str, Any], include_my_answer: bool = False) -> str:
+    """单题转 Markdown；include_my_answer 为 True 时才写入我的答案"""
     lines = [f"### {q['index']}. {q['type']}"]
     if q.get("score") not in (None, ""):
         lines[0] += f"（{q['score']}分）"
@@ -621,6 +659,9 @@ def question_to_markdown(q: Dict[str, Any]) -> str:
         lines.append("")
     if not q.get("std_answer"):
         lines.append("**答案：** （平台未返回）")
+        lines.append("")
+    if include_my_answer and q.get("my_answer"):
+        lines.append(f"**我的答案：** {q['my_answer']}")
         lines.append("")
     if q.get("analyse"):
         lines.append(f"**解析：** {q['analyse']}")
@@ -716,8 +757,11 @@ def _add_body_para(
     return p
 
 
-def _append_question_to_doc(doc, q: Dict[str, Any]) -> None:
-    """把一道题写成一组紧凑段落；除最后一段外 keep_with_next，整题尽量同页。"""
+def _append_question_to_doc(doc, q: Dict[str, Any], include_my_answer: bool = False) -> None:
+    """把一道题写成一组紧凑段落；除最后一段外 keep_with_next，整题尽量同页。
+
+    include_my_answer 为 True 时才写入我的答案。
+    """
     # 题间仅留少量空隙；题内段落间距为 0
     gap = 4.0
     parts: List[tuple] = [(_question_heading(q), True, gap)]
@@ -726,15 +770,12 @@ def _append_question_to_doc(doc, q: Dict[str, Any]) -> None:
         for opt in q["options"]:
             text = opt.get("text") or ""
             parts.append((f"{opt.get('label')}. {text}", bool(opt.get("is_answer")), 0.0))
+    my_suffix = f"　|　我的答案：{q['my_answer']}" if include_my_answer and q.get("my_answer") else ""
     if q.get("std_answer"):
-        ans = f"正确答案：{q['std_answer']}"
-        if q.get("my_answer"):
-            ans += f"　|　我的答案：{q['my_answer']}"
+        ans = f"正确答案：{q['std_answer']}" + my_suffix
         parts.append((ans, True, 0.0))
     else:
-        ans = "答案：（平台未返回）"
-        if q.get("my_answer"):
-            ans += f"　|　我的答案：{q['my_answer']}"
+        ans = "答案：（平台未返回）" + my_suffix
         parts.append((ans, False, 0.0))
     if q.get("analyse"):
         parts.append((f"解析：{q['analyse']}", False, 0.0))
@@ -890,6 +931,7 @@ def write_questions_docx(
     title: str,
     meta_lines: List[str],
     question_groups: List[Any],
+    include_my_answer: bool = False,
 ) -> None:
     """题目导出为 Word（.docx）
 
@@ -958,7 +1000,7 @@ def write_questions_docx(
             _set_outline_level(hp, 0)
 
         for q in questions:
-            _append_question_to_doc(doc, q)
+            _append_question_to_doc(doc, q, include_my_answer=include_my_answer)
 
     _enable_update_fields(doc)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -982,6 +1024,7 @@ class QuizExportHandler:
         selected_exam_ids: Optional[List[str]] = None,
         dev_mode: bool = False,
         export_format: str = EXPORT_FORMAT_MD,
+        include_my_answer: bool = False,
     ):
         self.logging = Logger(__name__).get_log()
         self.client = client or AIMoocApi(token=token, username=username, password=password)
@@ -990,6 +1033,8 @@ class QuizExportHandler:
         self.selected_exam_ids = set(selected_exam_ids or [])
         # -dev：额外输出 summary / *.json / raw/；正式模式只写复习用文档
         self.dev_mode = bool(dev_mode)
+        # 「我的答案」默认不写入文档，需用户确认后才写
+        self.include_my_answer = bool(include_my_answer)
         if export_format not in (EXPORT_FORMAT_MD, EXPORT_FORMAT_DOCX, EXPORT_FORMAT_BOTH):
             export_format = EXPORT_FORMAT_MD
         self.export_format = export_format
@@ -1187,24 +1232,61 @@ class QuizExportHandler:
         got_answers_from_info = False
         record = paper.get("taskExamRecord") if isinstance(paper, dict) else None
         record = record if isinstance(record, dict) else {}
-        task_id = _first(record, "id", "taskId", "recordId", default="")
+        draft_task_id = _first(record, "id", "taskId", "recordId", default="")
         rec_course_info_id = _first(
             record, "courseInfoId", default=""
         ) or _first(item, "courseInfoId", default="") or course_info_id
-        if task_id and rec_course_info_id:
+        student_id = (
+            _first(record, "userId", "studentId", default="")
+            or _first(item, "studentId", default="")
+            or getattr(self.client, "user_id", None)
+            or ""
+        )
+
+        student_records: List[Dict[str, Any]] = []
+        if exam_id and student_id:
             try:
-                record_info_raw = self.client.get_exam_record_info(
-                    course_info_id=str(rec_course_info_id),
-                    task_id=str(task_id),
-                    exam_id=str(exam_id),
+                rec_list_raw = self.client.get_exam_student_records(
+                    str(exam_id), str(student_id)
                 )
-                info_questions = self._extract_info_questions(record_info_raw)
-                if info_questions and _merge_record_answers(questions, info_questions):
-                    answer_source = "exam/record/getInfo"
-                    got_answers_from_info = True
+                if isinstance(rec_list_raw, list):
+                    student_records = [x for x in rec_list_raw if isinstance(x, dict)]
+                elif isinstance(rec_list_raw, dict):
+                    for key in ("rows", "list", "data", "records"):
+                        val = rec_list_raw.get(key)
+                        if isinstance(val, list):
+                            student_records = [x for x in val if isinstance(x, dict)]
+                            break
             except Exception as e:
-                self.logging.debug(f"获取作答记录失败 examId={exam_id}: {e}")
-                record_info_raw = None
+                self.logging.debug(f"获取作答记录列表失败 examId={exam_id}: {e}")
+
+        task_ids = _pick_task_ids_for_info(record, student_records)
+        if rec_course_info_id and task_ids:
+            for task_id in task_ids:
+                try:
+                    record_info_raw = self.client.get_exam_record_info(
+                        course_info_id=str(rec_course_info_id),
+                        task_id=str(task_id),
+                        exam_id=str(exam_id),
+                        student_id=str(student_id) if student_id else None,
+                    )
+                    info_questions = self._extract_info_questions(record_info_raw)
+                    if not info_questions:
+                        record_info_raw = None
+                        continue
+                    _merge_record_answers(questions, info_questions)
+                    if any(q.get("my_answer") for q in questions):
+                        answer_source = "exam/record/getInfo"
+                        got_answers_from_info = True
+                        break
+                    if not got_answers_from_info:
+                        answer_source = "exam/record/getInfo"
+                        got_answers_from_info = True
+                except Exception as e:
+                    self.logging.debug(
+                        f"获取作答记录失败 examId={exam_id} taskId={task_id}: {e}"
+                    )
+                    record_info_raw = None
 
         rec_list = record.get("taskExamProblemRecordList") if isinstance(record, dict) else None
         if isinstance(rec_list, list) and rec_list:
@@ -1305,14 +1387,17 @@ class QuizExportHandler:
         if self._wants(EXPORT_FORMAT_MD):
             md_lines = [f"# {title}", ""] + meta_lines + ["", "---", ""]
             for q in questions:
-                md_lines.append(question_to_markdown(q))
+                md_lines.append(question_to_markdown(q, include_my_answer=self.include_my_answer))
                 md_lines.append("")
             md_path = course_dir / f"{base}.md"
             md_path.write_text("\n".join(md_lines), encoding="utf-8")
             written.append(md_path.name)
         if self._wants(EXPORT_FORMAT_DOCX):
             docx_path = course_dir / f"{base}.docx"
-            write_questions_docx(docx_path, title, meta_lines, [(None, questions)])
+            write_questions_docx(
+                docx_path, title, meta_lines, [(None, questions)],
+                include_my_answer=self.include_my_answer,
+            )
             written.append(docx_path.name)
 
         self.summary_rows.append({
@@ -1436,7 +1521,9 @@ class QuizExportHandler:
                 for q in questions:
                     local_q = dict(q)
                     local_q["index"] = q.get("index", 0)
-                    md_lines.append(question_to_markdown(local_q))
+                    md_lines.append(question_to_markdown(
+                        local_q, include_my_answer=self.include_my_answer
+                    ))
                     md_lines.append("")
                 md_lines.append("---")
                 md_lines.append("")
@@ -1445,7 +1532,10 @@ class QuizExportHandler:
             written.append(md_path.name)
         if self._wants(EXPORT_FORMAT_DOCX):
             docx_path = course_dir / f"{base}.docx"
-            write_questions_docx(docx_path, title, meta_lines, groups)
+            write_questions_docx(
+                docx_path, title, meta_lines, groups,
+                include_my_answer=self.include_my_answer,
+            )
             written.append(docx_path.name)
 
         self.summary_rows.append({

@@ -227,6 +227,21 @@ class AIMoocApi(BaseAPIClient):
         params = {"id": exam_id, "groupId": group_id}
         return self.get(endpoint, params=params, origin_response=True)
 
+    def get_exam_student_records(
+        self, exam_id: str, student_id: Optional[str] = None
+    ) -> Any:
+        """获取某学生在某试卷下的作答记录列表（含已交卷 taskId）
+
+        GET /course/exam/record/getStudentRecordByExamId
+        paper.taskExamRecord 可能是未提交草稿；已交卷记录要走这里。
+        """
+        endpoint = "/course/exam/record/getStudentRecordByExamId"
+        params = {
+            "examId": exam_id,
+            "studentId": student_id or self.user_id or "",
+        }
+        return self.get(endpoint, params=params, origin_response=True)
+
     def get_exam_record_info(
         self,
         course_info_id: str,
@@ -238,7 +253,8 @@ class AIMoocApi(BaseAPIClient):
         """获取考试/测验作答记录详情（含标准答案、已交卷时含我的答案）
 
         GET /course/exam/record/getInfo
-        taskId 取 paper 响应里 taskExamRecord.id
+        taskId 必须是已交卷作答记录 id（getStudentRecordByExamId），
+        不能用 paper.taskExamRecord.id（常为 status=0 的草稿，stuAnswer 为空）
         studentId 默认取登录用户 id（JWT user_id / baseUser.id）
         """
         endpoint = "/course/exam/record/getInfo"
