@@ -1,3 +1,4 @@
+import base64
 import json
 import textwrap
 from typing import Dict, Any, Optional, List
@@ -13,6 +14,20 @@ SSO_URL = "https://sso.icve.com.cn/prod-api"
 UPLOAD_BASE_URL = "https://urc.icve.com.cn/stage-api"
 
 
+def _parse_jwt_user_id(token: Optional[str]) -> Optional[str]:
+    """从 JWT payload 里取 user_id（与 ICVE_Toolkit 一致）"""
+    if not token or token.count(".") < 2:
+        return None
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+        uid = data.get("user_id") or data.get("userId") or data.get("id")
+        return str(uid) if uid not in (None, "") else None
+    except Exception:
+        return None
+
+
 class AIMoocApi(BaseAPIClient):
     def __init__(self, token: str = None, username: str = None, password: str = None):
         super().__init__(BASE_URL)
@@ -21,6 +36,8 @@ class AIMoocApi(BaseAPIClient):
         self.access_token = None
         self.username = username
         self.password = password
+        self.user_info: Dict[str, Any] = {}
+        self.user_id: Optional[str] = None
         self.login()
 
     def login(self) -> None:
@@ -73,7 +90,11 @@ class AIMoocApi(BaseAPIClient):
     def get_info(self) -> None:
         """获取用户信息"""
         endpoint = "/system/baseUser/info"
-        user = self.get(endpoint)
+        user = self.get(endpoint) or {}
+        self.user_info = user if isinstance(user, dict) else {}
+        self.user_id = _parse_jwt_user_id(self.access_token) or str(
+            self.user_info.get("id") or self.user_info.get("userId") or ""
+        ) or None
 
         # 性别显示转换
         sex_display = {1: "男", 2: "女", 0: "未知"}.get(user.get("sex", 0), "未知")
@@ -182,6 +203,69 @@ class AIMoocApi(BaseAPIClient):
         }
 
         return self.post(endpoint, json=params, origin_response=True)
+
+    def get_exam_list_by_student(
+        self, course_info_id: str, course_id: str, category_id: int, page_num: int = 1, page_size: int = 999
+    ) -> Any:
+        """获取学生的作业/测验/考试列表
+
+        categoryId: 1/2/3（具体含义以接口返回的名称字段为准）
+        """
+        endpoint = "/course/exam/record/getExamListByStudent"
+        params = {
+            "pageNum": page_num,
+            "pageSize": page_size,
+            "courseInfoId": course_info_id,
+            "courseId": course_id,
+            "categoryId": category_id,
+        }
+        return self.get(endpoint, params=params, origin_response=True)
+
+    def get_exam_paper(self, exam_id: str, group_id: str = "0") -> Any:
+        """获取试卷题目（作业/测验/考试共用）"""
+        endpoint = "/course/exam/paper"
+        params = {"id": exam_id, "groupId": group_id}
+        return self.get(endpoint, params=params, origin_response=True)
+
+    def get_exam_student_records(
+        self, exam_id: str, student_id: Optional[str] = None
+    ) -> Any:
+        """获取某学生在某试卷下的作答记录列表（含已交卷 taskId）
+
+        GET /course/exam/record/getStudentRecordByExamId
+        paper.taskExamRecord 可能是未提交草稿；已交卷记录要走这里。
+        """
+        endpoint = "/course/exam/record/getStudentRecordByExamId"
+        params = {
+            "examId": exam_id,
+            "studentId": student_id or self.user_id or "",
+        }
+        return self.get(endpoint, params=params, origin_response=True)
+
+    def get_exam_record_info(
+        self,
+        course_info_id: str,
+        task_id: str,
+        exam_id: str,
+        student_id: Optional[str] = None,
+        type_id: str = "1",
+    ) -> Any:
+        """获取考试/测验作答记录详情（含标准答案、已交卷时含我的答案）
+
+        GET /course/exam/record/getInfo
+        taskId 必须是已交卷作答记录 id（getStudentRecordByExamId），
+        不能用 paper.taskExamRecord.id（常为 status=0 的草稿，stuAnswer 为空）
+        studentId 默认取登录用户 id（JWT user_id / baseUser.id）
+        """
+        endpoint = "/course/exam/record/getInfo"
+        params = {
+            "courseInfoId": course_info_id,
+            "taskId": task_id,
+            "examId": exam_id,
+            "studentId": student_id or self.user_id or "",
+            "type": type_id,
+        }
+        return self.get(endpoint, params=params, origin_response=True)
 
     def upload_file_status(self, url_short: str) -> Dict[str, Any]:
         """获取单个课程详细信息"""

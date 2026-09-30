@@ -19,13 +19,15 @@ class BaseAPIClient:
         self.access_token = token
         self.session.headers.update({"Authorization": f"Bearer {token}"})
 
-    def get(self, endpoint, params=None, base_url=None):
+    def get(self, endpoint, params=None, base_url=None, origin_response=False):
         """封装 GET 请求，支持自定义 base_url"""
         url = f"{base_url or self.default_base_url}{endpoint}"
         try:
             logger.debug(f"GET 请求: {url} | 参数: {params}")
             response = self.session.get(url, params=params)
             # logger.debug(f"GET 响应: {response.status_code} | {response.text}")
+            if origin_response:
+                return response.json()
             return parse_response(response)
         except Exception as e:
             logger.error(f"GET 请求失败: {e}")
