@@ -1,0 +1,14 @@
+[project]
+name = "mooc-work-answer"
+version = "v3.3.4"
+description = "智慧职教平台学习管理与题目导出工具"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "lxml==6.1.0",
+    "pycryptodome~=3.18.0",
+    "requests==2.31.0",
+]
+
+[tool.uv]
+package = false
