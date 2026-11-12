@@ -39,6 +39,7 @@ Thumbs.db
 /venv/
 
 
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *$py.class
@@ -170,3 +171,5 @@ dmypy.json
 /题库.csv
 
 /verify_code.jpg
+
+tiku/

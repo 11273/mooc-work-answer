@@ -58,9 +58,21 @@ def show_update_prompt(asset_url):
     root.destroy()
 
 
-def check_for_updates(app_version):
-    if app_version == 'dev':
-        logger.debug("开发环境，不检查更新。")
+def _is_release_version(app_version) -> bool:
+    """是否为可比较的发布版本（占位符/dev/0.0.0 不检查更新）"""
+    if not app_version:
+        return False
+    v = str(app_version).strip()
+    if v in ("dev", "source", "0.0.0") or v.startswith("${"):
+        return False
+    core = v.lstrip("v")
+    parts = core.split(".")
+    return len(parts) >= 2 and all(p.isdigit() for p in parts if p != "")
+
+
+def check_for_updates(app_version, release_build: bool = True):
+    if not release_build or not _is_release_version(app_version):
+        logger.debug("源码/开发环境，不检查更新。")
         return
 
     logger.info("检查更新中，请稍后...")
