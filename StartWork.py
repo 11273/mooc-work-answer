@@ -22,7 +22,7 @@ from update import check_for_updates
 
 # ****************************************** 常量定义 ******************************************
 
-# CI（simple-template-renderer）会把下面的占位符替换成发布 tag，例如 v1.2.3
+# 发布构建会在临时副本中把占位符替换成发布 tag，例如 v1.2.3
 _RELEASE_TAG_PLACEHOLDER = "${TAG_NAME}"
 
 
@@ -56,6 +56,7 @@ SUB_BORDER_WIDTH = 50
 
 # 命令行：python StartWork.py -dev → 过程日志 + summary/json/raw；正式模式干净输出
 IS_DEV = is_dev_mode()
+CHECK_ONLY = '--check' in sys.argv[1:]
 
 # 版本选项
 VERSION_OPTIONS = {
@@ -83,6 +84,8 @@ EXPORT_FORMAT_OPTIONS = {
     2: "Word（.docx）",
     3: "Markdown + Word",
 }
+
+COURSE_STATUS_OPTIONS = {0: "全部", 1: "进行中", 2: "未开始", 3: "已结束"}
 
 # ****************************************** 初始化 ******************************************
 
@@ -195,7 +198,7 @@ def get_export_category_choice() -> int:
     """获取题目导出范围"""
     print_section_header(
         "导出范围",
-        "常规 MOOC（ai.icve.com.cn）；正式模式只输出 md 到 tiku/课程名/；加 -dev 额外输出 json/raw/summary",
+        "文档输出到 tiku/课程名/；加 -dev 额外输出 json/raw/summary",
     )
 
     for key, value in EXPORT_CATEGORY_OPTIONS.items():
@@ -213,6 +216,30 @@ def get_export_category_choice() -> int:
             logger.warning(f'❌ 请输入 0-{len(EXPORT_CATEGORY_OPTIONS)-1} 之间的数字')
         except ValueError:
             logger.warning('❌ 请输入有效的数字')
+
+def get_export_course_status_choice() -> int:
+    """导出可选历史课程；学习管理仍仅处理进行中课程。"""
+    print_section_header("导出课程状态")
+    for key, label in COURSE_STATUS_OPTIONS.items():
+        logger.info(f'  {key}. {label}')
+    while True:
+        raw = input('* 请选择课程状态 [0-3] (默认1 进行中): ').strip() or '1'
+        if raw.isdigit() and int(raw) in COURSE_STATUS_OPTIONS:
+            choice = int(raw)
+            record_config("导出课程状态", COURSE_STATUS_OPTIONS[choice])
+            return choice
+        logger.warning('❌ 请输入 0-3 之间的数字')
+
+def get_export_courses(client, status: int) -> list:
+    rows, seen = [], set()
+    for flag in ([1, 2, 3] if status == 0 else [status]):
+        response = client.my_course_list_all(flag=flag)
+        for course in response['rows']:
+            key = str(course.get('id') or course.get('courseInfoId'))
+            if key not in seen:
+                seen.add(key)
+                rows.append(course)
+    return rows
 
 def get_course_selection(course_rows: list) -> list:
     """列出课程并让用户多选，返回选中的课程行"""
@@ -251,7 +278,7 @@ def get_course_selection(course_rows: list) -> list:
                         break
                     if start > end:
                         start, end = end, start
-                    picked.extend(range(start, end + 1))
+                    picked.extend(range(max(1, start), min(len(course_rows), end) + 1))
                 else:
                     try:
                         picked.append(int(part))
@@ -368,7 +395,7 @@ def get_selected_quiz_exam_ids(client, selected_courses: list, quiz_mode: str):
                         break
                     if start > end:
                         start, end = end, start
-                    picked.extend(range(start, end + 1))
+                    picked.extend(range(max(1, start), min(len(catalog), end) + 1))
                 else:
                     try:
                         picked.append(int(part))
@@ -519,9 +546,11 @@ def handle_resource_library(version: int):
     
     # 根据登录方式调用不同的参数
     if token:
-        ZYKMoocHandler(jump_content=skip_keywords, token=token)
+        handler = ZYKMoocHandler(jump_content=skip_keywords, token=token, dry_run=CHECK_ONLY)
     else:
-        ZYKMoocHandler(username, password, skip_keywords)
+        handler = ZYKMoocHandler(username, password, skip_keywords, dry_run=CHECK_ONLY)
+    if not handler.success:
+        raise RuntimeError("资源库学习管理存在失败项，请检查上方错误")
 
 def handle_mooc_or_classroom(version: int):
     """处理MOOC或课堂版"""
@@ -550,7 +579,9 @@ def handle_ai_mooc(version: int):
 
     logger.info(f"┃🚀 启动{VERSION_OPTIONS[version]}版本┃")
     log_user_config()  # 记录完整配置
-    AIMoocHandler(jump_content=skip_keywords, token=token, username=username, password=password)
+    handler = AIMoocHandler(jump_content=skip_keywords, token=token, username=username, password=password, dry_run=CHECK_ONLY)
+    if not handler.success:
+        raise RuntimeError("MOOC 学习管理存在失败项，请检查上方错误")
 
 def handle_export_questions(version: int):
     """导出题目（作业/测验/考试，含正确答案）"""
@@ -565,8 +596,8 @@ def handle_export_questions(version: int):
     from AIMoocMain.export_questions import QuizExportHandler
 
     client = AIMoocApi(token=token, username=username, password=password)
-    courses = client.my_course_list(page_size=9999)
-    course_rows = courses.get("rows", []) if isinstance(courses, dict) else []
+    course_status = get_export_course_status_choice()
+    course_rows = get_export_courses(client, course_status)
     if not course_rows:
         logger.error("❌ 未获取到课程列表，无法导出")
         return
@@ -582,6 +613,9 @@ def handle_export_questions(version: int):
 
     # 「我的答案」默认不写入文档，需确认
     include_my_answer = get_user_choice("导出文档写入我的答案", default="n")
+    include_unsubmitted = False if CHECK_ONLY else get_user_choice(
+        "包含未交卷试卷（会请求试卷接口，可能创建作答记录或开始计时）", default="n"
+    )
 
     category_choice = get_export_category_choice()
     # categoryId: 1=作业 2=考试 3=测验（与 EXPORT_CATEGORY_OPTIONS 键一致）
@@ -608,7 +642,7 @@ def handle_export_questions(version: int):
         logger.info(f"📄 导出格式: {export_format}")
         log_user_config()
 
-    QuizExportHandler(
+    exporter = QuizExportHandler(
         client=client,
         course_rows=selected_courses,
         category_ids=category_ids,
@@ -618,7 +652,10 @@ def handle_export_questions(version: int):
         dev_mode=IS_DEV,
         export_format=export_format,
         include_my_answer=include_my_answer,
+        submitted_only=not include_unsubmitted,
     )
+    if not exporter.success:
+        raise RuntimeError("题目导出存在失败项，请根据上方接口或文件错误重试")
 
 def print_exit_message():
     """打印退出信息"""
@@ -667,4 +704,9 @@ def main():
         print_exit_message()
 
 if __name__ == '__main__':
-    main()
+    if '--self-test' in sys.argv[1:]:
+        import json
+        from base.package_check import run_package_check
+        print(json.dumps(run_package_check(APP_VERSION)))
+    else:
+        main()

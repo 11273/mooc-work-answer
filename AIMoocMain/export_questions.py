@@ -10,12 +10,14 @@
 输出：tiku/<课程>/*.md；-dev 时额外写 *.json、raw/、tiku/summary.*
 """
 
-import html as html_module
 import json
 import re
 import time
+from collections import Counter
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin, urlsplit
 
 from MoocMain.log import Logger
 from AIMoocMain.api import AIMoocApi
@@ -57,6 +59,14 @@ EXPORT_FORMAT_LABEL = {
 }
 
 
+def response_error(payload: Any) -> str:
+    if payload is None:
+        return "接口未返回数据，请检查网络或重新登录"
+    if isinstance(payload, dict) and payload.get("code") not in (None, 200, "200"):
+        return "{}：{}".format(payload.get("code"), payload.get("msg") or "接口请求失败")
+    return ""
+
+
 def parse_index_input(raw: str, max_n: int) -> Optional[List[int]]:
     """解析课程/测验多选输入：all / 1,3 / 1-3
 
@@ -80,7 +90,7 @@ def parse_index_input(raw: str, max_n: int) -> Optional[List[int]]:
                 return None
             if start > end:
                 start, end = end, start
-            picked.extend(range(start, end + 1))
+            picked.extend(range(max(1, start), min(max_n, end) + 1))
         else:
             try:
                 picked.append(int(part))
@@ -124,11 +134,15 @@ def collect_quiz_catalog(
         if not course_info_id or not course_id:
             continue
         try:
-            resp = client.get_exam_list_by_student(
+            fetch_list = getattr(client, "exam_list_all", client.get_exam_list_by_student)
+            resp = fetch_list(
                 str(course_info_id), str(course_id), category_id
             )
-        except Exception:
-            continue
+            error = response_error(resp)
+            if error:
+                raise RuntimeError(error)
+        except Exception as error:
+            raise RuntimeError(f"获取 {course_name} 的测验列表失败：{error}") from error
         for item in extract_list(resp):
             exam_id = paper_exam_id(item)
             if not exam_id:
@@ -158,16 +172,55 @@ QUESTION_TYPE_MAP = {
 }
 
 
+class _QuestionHTMLParser(HTMLParser):
+    def __init__(self, keep_images=True):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.hidden = 0
+        self.keep_images = keep_images
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self.hidden += 1
+        if self.hidden:
+            return
+        if tag in ("br", "p", "div", "tr", "li"):
+            self.parts.append("\n")
+        if tag == "img" and self.keep_images:
+            attrs = dict(attrs)
+            source = attrs.get("src") or attrs.get("data-src") or ""
+            source = urljoin("https://ai.icve.com.cn/", source)
+            if urlsplit(source).scheme in ("http", "https"):
+                alt = (attrs.get("alt") or "题图").replace("[", "(").replace("]", ")")
+                self.parts.append("\n![{}]({})\n".format(alt, source.replace(" ", "%20").replace(")", "%29")))
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style"):
+            self.hidden = max(0, self.hidden - 1)
+        elif not self.hidden and tag in ("p", "div", "tr", "li"):
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.hidden:
+            self.parts.append(data)
+
+
+def question_html_text(value: Any) -> str:
+    """保留题图的原始链接，避免导出图片题时丢失题干。"""
+    if value is None:
+        return ""
+    parser = _QuestionHTMLParser()
+    parser.feed(str(value))
+    return re.sub(r"\n{3,}", "\n\n", "".join(parser.parts)).strip()
+
+
 def clean_html_text(text: Optional[str]) -> str:
     """去掉 HTML 标签和不可见控制字符，保留纯文本"""
-    if not text:
+    if text is None:
         return ""
-    text = str(text)
-    # 先把 br/p 换成换行，避免句子粘连
-    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.I)
-    text = re.sub(r'</p\s*>', '\n', text, flags=re.I)
-    text = re.sub(r'<[^>]+>', '', text)
-    text = html_module.unescape(text)
+    parser = _QuestionHTMLParser(keep_images=False)
+    parser.feed(str(text))
+    text = "".join(parser.parts)
     for ch in ('​', '‌', '‍', '﻿',
                '‎', '‏', '‪', '‫', '‬', '‭', '‮'):
         text = text.replace(ch, '')
@@ -180,7 +233,7 @@ def safe_filename(name: str) -> str:
     """文件名安全化"""
     name = re.sub(r'[\\/:*?"<>|]+', '_', name or "未命名")
     name = re.sub(r'\s+', '_', name).strip("._")
-    return name[:80] or "未命名"
+    return name[:80].encode("utf-8")[:160].decode("utf-8", errors="ignore").strip("._") or "未命名"
 
 
 def extract_list(payload: Any) -> List[Dict[str, Any]]:
@@ -274,7 +327,7 @@ def parse_options(raw: Any) -> List[Dict[str, Any]]:
     options = []
     for idx, opt in enumerate(raw):
         if isinstance(opt, dict):
-            content = clean_html_text(_first(
+            content = question_html_text(_first(
                 opt, "Content", "content", "text", "Text", "title", "name", default=""
             ))
             label = _first(opt, "label", "Label", "SortOrder", "sortOrder", "key", default=None)
@@ -286,9 +339,10 @@ def parse_options(raw: Any) -> List[Dict[str, Any]]:
                 # SortOrder 常是 0/1/2 → A/B/C
                 if re.fullmatch(r"\d+", label):
                     label = chr(65 + int(label))
-            is_answer = bool(_first(
+            answer_flag = _first(
                 opt, "IsAnswer", "isAnswer", "answer", "isRight", "isCorrect", default=False
-            ))
+            )
+            is_answer = str(answer_flag).strip().lower() in ("true", "1", "yes")
             options.append({
                 "label": label,
                 "text": content,
@@ -338,9 +392,10 @@ def _map_answer_tokens(tokens: List[str], options: List[Dict[str, Any]]) -> List
     return mapped
 
 
-def _answer_from_options(options: List[Dict[str, Any]]) -> str:
+def _answer_from_options(options: List[Dict[str, Any]], judgement: bool = False) -> str:
     """从选项 is_answer 汇总正确答案字母"""
-    correct = [o["label"] for o in options if o.get("is_answer")]
+    correct = [(_judgement_answer_text(o.get("text") or o.get("sort_order")) if judgement else o["label"])
+               for o in options if o.get("is_answer")]
     return ",".join(correct) if correct else ""
 
 
@@ -362,9 +417,9 @@ def _judgement_answer_text(raw: Any) -> str:
     if isinstance(raw, bool):
         return "正确" if raw else "错误"
     if isinstance(raw, (int, float)):
-        if int(raw) == 1:
+        if raw == 1:
             return "正确"
-        if int(raw) == 0:
+        if raw == 0:
             return "错误"
         return str(raw)
     text = clean_html_text(str(raw)).strip()
@@ -382,11 +437,21 @@ def _judgement_answer_text(raw: Any) -> str:
     return text
 
 
-def _normalize_answer(raw: Any, options: Optional[List[Dict[str, Any]]], *, judgement: bool) -> str:
-    """按题型规范答案：判断题→正确/错误；其余→A,B,C 字母"""
+def _is_choice_type(type_raw: Any, type_label: str = "") -> bool:
+    return str(type_raw) in ("1", "2", "单选题", "多选题") or type_label in ("单选题", "多选题")
+
+
+def _normalize_answer(raw: Any, options: Optional[List[Dict[str, Any]]], *, judgement: bool, choice: bool = False) -> str:
+    """仅选择题映射字母；填空、问答保留大小写、数字和标点。"""
     if judgement:
         return _judgement_answer_text(raw)
-    return _answer_letters(raw, options)
+    if choice:
+        return _answer_letters(raw, options)
+    if isinstance(raw, (list, tuple)):
+        return "；".join(clean_html_text(part) for part in raw)
+    if isinstance(raw, dict):
+        return json.dumps(raw, ensure_ascii=False)
+    return clean_html_text(raw)
 
 
 def _answer_letters(raw: Any, options: Optional[List[Dict[str, Any]]] = None) -> str:
@@ -502,6 +567,7 @@ def _pick_task_ids_for_info(
 def _merge_record_answers(
     questions: List[Dict[str, Any]],
     info_questions: List[Dict[str, Any]],
+    overwrite_my_answer: bool = True,
 ) -> int:
     """把 getInfo/taskExamProblemRecordList 的答案合并进已解析题目
 
@@ -518,49 +584,47 @@ def _merge_record_answers(
             continue
         options = q.get("options") or []
         judgement = _is_judgement_type(q.get("type_raw"), q.get("type") or "")
+        choice = _is_choice_type(q.get("type_raw"), q.get("type") or "")
 
         # 正确答案：显式字段优先；getInfo 的 answer 通常就是标准答案
-        std = clean_html_text(_first(
+        std_raw = _first(
             raw,
             "stdAnswer", "correctAnswer", "rightAnswer", "answerContent",
             "trueAnswer", "da", "xsda", "std_answer", "right", default="",
-        ))
-        if std:
-            std = _normalize_answer(std, options, judgement=judgement)
+        )
+        std = _normalize_answer(std_raw, options, judgement=judgement, choice=choice)
 
         if not std:
             ans_field = _first(raw, "answer", "trueAnswer", "realAnswer", default=None)
             if ans_field not in (None, ""):
-                std = _normalize_answer(ans_field, options, judgement=judgement)
+                std = _normalize_answer(ans_field, options, judgement=judgement, choice=choice)
 
         if not std:
             rec_opts = parse_options(_first(
                 raw, "dataJson", "dataArr", "optionDtos", "options", default=None
             ))
-            std = _answer_from_options(rec_opts) or _answer_from_options(options)
+            std = _answer_from_options(rec_opts, judgement) or _answer_from_options(options, judgement)
 
         # 我的答案：stuAnswer / recordAnswer / myAnswer
-        my = clean_html_text(_first(
+        my_raw = _first(
             raw,
             "stuAnswer", "recordAnswer", "myAnswer", "studentAnswer",
             "userAnswer", "my_answer", "fillBlankRecordAnswer", default="",
-        ))
-        if my:
-            my = _normalize_answer(my, options, judgement=judgement)
+        )
+        my = _normalize_answer(my_raw, options, judgement=judgement, choice=choice)
 
         changed = False
         if std and not q.get("std_answer"):
             q["std_answer"] = std
             changed = True
-        elif std and q.get("std_answer") and std != q["std_answer"]:
-            if len(std) >= len(str(q["std_answer"])):
-                q["std_answer"] = std
-                changed = True
-        if my and not q.get("my_answer"):
+        elif std and std != q.get("std_answer"):
+            q["std_answer"] = std
+            changed = True
+        if (my or overwrite_my_answer) and (overwrite_my_answer or not q.get("my_answer")):
             q["my_answer"] = my
             changed = True
         if not q.get("analyse"):
-            analyse = clean_html_text(_first(raw, "analysis", "analyse", "analysisText", default=""))
+            analyse = question_html_text(_first(raw, "analysis", "analyse", "analysisText", default=""))
             if analyse:
                 q["analyse"] = analyse
                 changed = True
@@ -571,19 +635,19 @@ def _merge_record_answers(
         if q.get("std_answer") and q.get("options"):
             labels = {x.strip().upper() for x in str(q["std_answer"]).split(",") if x.strip()}
             for opt in q["options"]:
-                if opt.get("label") in labels:
-                    opt["is_answer"] = True
+                if choice:
+                    opt["is_answer"] = opt.get("label") in labels
     return filled
 
 
-def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
+def parse_question(raw: Dict[str, Any], index: int, from_record: bool = False) -> Dict[str, Any]:
     """把原始题目字段规范成统一结构"""
     type_raw = _first(raw, "typeId", "type", "questionType", "txdm", "qType", default=None)
     type_label = QUESTION_TYPE_MAP.get(type_raw) or QUESTION_TYPE_MAP.get(str(type_raw)) if type_raw is not None else None
     if not type_label:
         type_label = f"题型{type_raw}" if type_raw is not None else "未知"
 
-    title = clean_html_text(_first(
+    title = question_html_text(_first(
         raw, "title", "questionTitle", "questionContent", "content", "tm", "Title", default=""
     ))
 
@@ -591,30 +655,33 @@ def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         raw, "dataJson", "dataArr", "optionDtos", "options", "answerList", "xxList", default=None
     ))
 
-    std_answer = clean_html_text(_first(
+    std_raw = _first(
         raw, "stdAnswer", "correctAnswer", "rightAnswer", "answerContent",
         "trueAnswer", "da", "xsda", default=""
-    ))
+    )
     judgement = _is_judgement_type(type_raw, type_label)
-    if std_answer:
-        std_answer = _normalize_answer(std_answer, options, judgement=judgement)
+    choice = _is_choice_type(type_raw, type_label)
+    std_answer = _normalize_answer(std_raw, options, judgement=judgement, choice=choice)
+    if from_record and not std_answer:
+        std_answer = _normalize_answer(raw.get("answer"), options, judgement=judgement, choice=choice)
 
     # paper 未提交时 answer 多为 null；已提交时可能是「我的答案」，不能当标准答案
-    my_answer = clean_html_text(_first(
+    my_raw = _first(
         raw, "stuAnswer", "recordAnswer", "myAnswer", "studentAnswer", "userAnswer", "my_answer", default=""
-    ))
-    if not my_answer:
+    )
+    my_answer = _normalize_answer(my_raw, options, judgement=judgement, choice=choice)
+    if not my_answer and not from_record:
         rec = _first(raw, "recordAnswer", "myAnswer", "studentAnswer", "answer", default=None)
         if rec not in (None, ""):
             # 判断题 paper.answer 在未提交时可能为 null，不在此误用 0/1；有 stuAnswer 才填
             if judgement and rec in (0, 1, "0", "1", True, False):
                 my_answer = ""
             else:
-                my_answer = _normalize_answer(rec, options, judgement=judgement)
+                my_answer = _normalize_answer(rec, options, judgement=judgement, choice=choice)
 
     # 选项里已标记正确答案时，汇总到 std_answer
     if not std_answer and options:
-        std_answer = _answer_from_options(options)
+        std_answer = _answer_from_options(options, judgement)
 
     question_id = _first(raw, "id", "questionId", "quesId", "tmid", "problemId", default=None)
     score = _first(raw, "score", "questionScore", "scoreValue", "fullScore", default=None)
@@ -631,7 +698,7 @@ def parse_question(raw: Dict[str, Any], index: int) -> Dict[str, Any]:
         "options": options,
         "std_answer": std_answer,
         "my_answer": my_answer,
-        "analyse": clean_html_text(_first(raw, "analyse", "analysis", "explain", "parse", "analysisText", default="")),
+        "analyse": question_html_text(_first(raw, "analyse", "analysis", "explain", "parse", "analysisText", default="")),
     }
 
 
@@ -746,8 +813,24 @@ def _add_body_para(
     from docx.shared import Pt
 
     p = doc.add_paragraph()
-    run = p.add_run(text)
-    _apply_docx_font(run, _DOCX_BODY_PT, bold=bold)
+    # Word 保留可点击的题图链接；不把图片 HTML 或 Markdown 语法当题干删除。
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.opc.constants import RELATIONSHIP_TYPE
+
+    offset = 0
+    for match in re.finditer(r"!\[([^\]]*)\]\((https?://[^\s)]+)\)", text):
+        _apply_docx_font(p.add_run(text[offset:match.start()]), _DOCX_BODY_PT, bold=bold)
+        link = OxmlElement("w:hyperlink")
+        link.set(qn("r:id"), p.part.relate_to(match.group(2), RELATIONSHIP_TYPE.HYPERLINK, is_external=True))
+        run = OxmlElement("w:r")
+        label = OxmlElement("w:t")
+        label.text = "[{}：查看原图]".format(match.group(1) or "题图")
+        run.append(label)
+        link.append(run)
+        p._p.append(link)
+        offset = match.end()
+    _apply_docx_font(p.add_run(text[offset:]), _DOCX_BODY_PT, bold=bold)
     pf = p.paragraph_format
     pf.keep_with_next = keep_with_next
     pf.keep_together = True
@@ -1025,6 +1108,7 @@ class QuizExportHandler:
         dev_mode: bool = False,
         export_format: str = EXPORT_FORMAT_MD,
         include_my_answer: bool = False,
+        submitted_only: bool = False,
     ):
         self.logging = Logger(__name__).get_log()
         self.client = client or AIMoocApi(token=token, username=username, password=password)
@@ -1035,6 +1119,7 @@ class QuizExportHandler:
         self.dev_mode = bool(dev_mode)
         # 「我的答案」默认不写入文档，需用户确认后才写
         self.include_my_answer = bool(include_my_answer)
+        self.submitted_only = bool(submitted_only)
         if export_format not in (EXPORT_FORMAT_MD, EXPORT_FORMAT_DOCX, EXPORT_FORMAT_BOTH):
             export_format = EXPORT_FORMAT_MD
         self.export_format = export_format
@@ -1049,11 +1134,12 @@ class QuizExportHandler:
             "answered": 0,
             "my_answered": 0,
             "errors": 0,
+            "skipped": 0,
         }
         self.summary_rows: List[Dict[str, Any]] = []
 
         if course_rows is None:
-            courses = self.client.my_course_list(page_size=9999)
+            courses = self.client.my_course_list_all()
             course_rows = courses.get("rows", []) if isinstance(courses, dict) else []
         course_rows = course_rows or []
         if course_ids:
@@ -1063,7 +1149,9 @@ class QuizExportHandler:
                 if str(c.get("id") or c.get("courseInfoId") or "") in wanted
             ]
         self.course_rows = course_rows
-        self.start_export()
+        names = Counter(safe_filename(c.get("courseName") or "未知课程") for c in course_rows)
+        self._duplicate_course_names = {name for name, count in names.items() if count > 1}
+        self.success = self.start_export()
 
     # -------------------- 日志（过程日志仅 -dev） --------------------
 
@@ -1079,12 +1167,12 @@ class QuizExportHandler:
 
     # -------------------- 主流程 --------------------
 
-    def start_export(self) -> None:
+    def start_export(self) -> bool:
         try:
             self._info(f"📚 待导出课程 {len(self.course_rows)} 门")
             if not self.course_rows:
                 self.logging.warning("⚠️ 未选择课程或没有课程数据")
-                return
+                return False
 
             self._info("➕➕➕ 开始导出题目 ➕➕➕")
             self._info(
@@ -1103,22 +1191,32 @@ class QuizExportHandler:
                 self._info(
                     f"🪧 [{index}] 课程: {course_name} ({course.get('courseInfoName', '')})"
                 )
-                self.export_course(course)
+                try:
+                    self.export_course(course)
+                except Exception as error:
+                    self.stats["errors"] += 1
+                    self.logging.error(f"❌ 导出课程 {course_name} 失败：{error}")
 
             self.save_summary()
             self._info("➕➕➕ 导出完成 ➕➕➕")
-            self._info(
+            self.logging.info(
                 f"📊 统计: 课程 {self.stats['courses']} | "
                 f"试卷 {self.stats['papers']} | "
                 f"题目 {self.stats['questions']} | "
                 f"正确答案 {self.stats['answered']} | "
                 f"我的答案 {self.stats['my_answered']} | "
-                f"错误 {self.stats['errors']}"
+                f"跳过 {self.stats['skipped']} | 错误 {self.stats['errors']}"
             )
-            self._info(f"📁 输出目录: {self.output_dir.resolve()}")
+            if self.summary_rows:
+                self.logging.info(f"📁 输出目录: {self.output_dir.resolve()}")
+            elif not self.stats["errors"]:
+                self.logging.info("ℹ️ 没有可导出的内容；可调整课程状态、分类或已交卷筛选后重试")
+            return self.stats["errors"] == 0
 
         except Exception as e:
+            self.stats["errors"] += 1
             self.logging.error(f"❌ 导出失败: {e}")
+            return False
 
     def export_course(self, course: Dict[str, Any]) -> None:
         course_name = course.get("courseName", "未知课程")
@@ -1129,15 +1227,22 @@ class QuizExportHandler:
             self.logging.warning(f"⚠️ 课程 {course_name} 缺少 ID，跳过")
             return
 
-        course_dir = self.output_dir / safe_filename(course_name)
+        directory_name = safe_filename(course_name)
+        if directory_name in self._duplicate_course_names:
+            directory_name += "_" + safe_filename(str(course_info_id))
+        course_dir = self.output_dir / directory_name
         course_dir.mkdir(parents=True, exist_ok=True)
 
         exported_any = False
         for category_id in self.category_ids:
             try:
-                resp = self.client.get_exam_list_by_student(
+                fetch_list = getattr(self.client, "exam_list_all", self.client.get_exam_list_by_student)
+                resp = fetch_list(
                     course_info_id, course_id, category_id
                 )
+                error = response_error(resp)
+                if error:
+                    raise RuntimeError(error)
             except Exception as e:
                 self.logging.error(f"❌ 获取试卷列表失败 course={course_name} cat={category_id}: {e}")
                 self.stats["errors"] += 1
@@ -1198,129 +1303,109 @@ class QuizExportHandler:
         course_dir: Path,
         course_info_id: str = "",
     ) -> Optional[Dict[str, Any]]:
-        """拉取并解析一份试卷（含答案），不负责写文件"""
+        """优先读取最近一次已交卷记录，历史试卷不依赖进入作答接口。"""
         exam_id = paper_exam_id(item)
         if not exam_id:
             return None
-
         paper_name = paper_display_name(item, exam_id)
         category_name = clean_html_text(_first(
             item, "categoryName", "typeName", "workExamType", default=""
         )) or CATEGORY_FALLBACK.get(category_id, str(category_id))
-
-        try:
-            paper_raw = self.client.get_exam_paper(str(exam_id))
-        except Exception as e:
-            self.logging.error(f"❌ 获取试卷失败 [{category_name}] {paper_name}: {e}")
-            self.stats["errors"] += 1
-            return None
-
-        paper = unwrap_paper(paper_raw)
-        raw_questions = get_questions_from_paper(paper)
-        if not raw_questions:
-            self.logging.warning(
-                f"  ⚠️ 未解析到题目 [{category_name}] {paper_name}（examId={exam_id}）"
-            )
-            self.save_raw(course_dir, category_name, paper_name, exam_id, paper_raw)
-            self.stats["errors"] += 1
-            return None
-
-        questions = [parse_question(q, i + 1) for i, q in enumerate(raw_questions)]
-
+        course_info_id = str(item.get("courseInfoId") or course_info_id)
+        student_id = getattr(self.client, "user_id", None) or item.get("studentId")
+        paper_raw = None
         record_info_raw = None
-        answer_source = "paper"
-        got_answers_from_info = False
-        record = paper.get("taskExamRecord") if isinstance(paper, dict) else None
-        record = record if isinstance(record, dict) else {}
-        draft_task_id = _first(record, "id", "taskId", "recordId", default="")
-        rec_course_info_id = _first(
-            record, "courseInfoId", default=""
-        ) or _first(item, "courseInfoId", default="") or course_info_id
-        student_id = (
-            _first(record, "userId", "studentId", default="")
-            or _first(item, "studentId", default="")
-            or getattr(self.client, "user_id", None)
-            or ""
-        )
+        info_questions = []
+        submitted = []
+        try:
+            if student_id:
+                record_list = self.client.get_exam_student_records(str(exam_id), str(student_id))
+                error = response_error(record_list)
+                if error:
+                    raise RuntimeError("获取作答记录失败：" + error)
+                submitted = _pick_task_ids_for_info({}, extract_list(record_list))
+            if self.submitted_only and not submitted:
+                self.stats["skipped"] += 1
+                return None
 
-        student_records: List[Dict[str, Any]] = []
-        if exam_id and student_id:
-            try:
-                rec_list_raw = self.client.get_exam_student_records(
-                    str(exam_id), str(student_id)
+            # 一份导出只对应最新一次交卷；不把旧作答混进最新一次的空答案。
+            if submitted and course_info_id:
+                record_info_raw = self.client.get_exam_record_info(
+                    course_info_id=course_info_id, task_id=submitted[0],
+                    exam_id=str(exam_id), student_id=str(student_id),
                 )
-                if isinstance(rec_list_raw, list):
-                    student_records = [x for x in rec_list_raw if isinstance(x, dict)]
-                elif isinstance(rec_list_raw, dict):
-                    for key in ("rows", "list", "data", "records"):
-                        val = rec_list_raw.get(key)
-                        if isinstance(val, list):
-                            student_records = [x for x in val if isinstance(x, dict)]
-                            break
-            except Exception as e:
-                self.logging.debug(f"获取作答记录列表失败 examId={exam_id}: {e}")
+                error = response_error(record_info_raw)
+                if error:
+                    raise RuntimeError("获取已交卷详情失败：" + error)
+                info_questions = self._extract_info_questions(record_info_raw)
 
-        task_ids = _pick_task_ids_for_info(record, student_records)
-        if rec_course_info_id and task_ids:
-            for task_id in task_ids:
-                try:
-                    record_info_raw = self.client.get_exam_record_info(
-                        course_info_id=str(rec_course_info_id),
-                        task_id=str(task_id),
-                        exam_id=str(exam_id),
-                        student_id=str(student_id) if student_id else None,
-                    )
-                    info_questions = self._extract_info_questions(record_info_raw)
-                    if not info_questions:
-                        record_info_raw = None
-                        continue
-                    _merge_record_answers(questions, info_questions)
-                    if any(q.get("my_answer") for q in questions):
-                        answer_source = "exam/record/getInfo"
-                        got_answers_from_info = True
-                        break
-                    if not got_answers_from_info:
-                        answer_source = "exam/record/getInfo"
-                        got_answers_from_info = True
-                except Exception as e:
-                    self.logging.debug(
-                        f"获取作答记录失败 examId={exam_id} taskId={task_id}: {e}"
-                    )
-                    record_info_raw = None
-
-        rec_list = record.get("taskExamProblemRecordList") if isinstance(record, dict) else None
-        if isinstance(rec_list, list) and rec_list:
-            if _merge_record_answers(questions, rec_list) and not got_answers_from_info:
-                answer_source = "taskExamProblemRecordList"
-
-        answered = sum(1 for q in questions if q.get("std_answer"))
-        my_answered = sum(1 for q in questions if q.get("my_answer"))
-        self.stats["papers"] += 1
-        self.stats["questions"] += len(questions)
-        self.stats["answered"] = self.stats.get("answered", 0) + answered
-        self.stats["my_answered"] = self.stats.get("my_answered", 0) + my_answered
-
-        self.save_raw(course_dir, category_name, paper_name, exam_id, paper_raw)
-        if record_info_raw is not None:
-            self.save_raw(
-                course_dir, category_name, paper_name, exam_id,
-                record_info_raw, suffix="_record",
+            title_keys = ("title", "questionTitle", "questionContent", "content", "tm", "Title")
+            record_has_content = bool(info_questions) and all(
+                any(key in q for key in title_keys) for q in info_questions
             )
+            if record_has_content:
+                # getInfo 已包含题干、选项和答案，不再请求可能新建草稿的 paper。
+                questions = [parse_question(q, i + 1, from_record=True) for i, q in enumerate(info_questions)]
+                _merge_record_answers(questions, info_questions)
+                answer_source = "exam/record/getInfo"
+            else:
+                if self.submitted_only:
+                    raise RuntimeError("已交卷记录未返回完整题干，已停止以避免进入新的作答")
+                paper_raw = self.client.get_exam_paper(str(exam_id), str(item.get("groupId") or "0"))
+                error = response_error(paper_raw)
+                if error:
+                    raise RuntimeError("获取试卷失败：" + error)
+                paper = unwrap_paper(paper_raw)
+                raw_questions = get_questions_from_paper(paper)
+                if not raw_questions:
+                    raise RuntimeError("平台未返回可解析的题目")
+                questions = [parse_question(q, i + 1) for i, q in enumerate(raw_questions)]
+                answer_source = "paper"
+                record = paper.get("taskExamRecord") or {}
+                if not info_questions and not submitted and isinstance(record, dict):
+                    # 未交卷试卷仍可补充标准答案，但不能把草稿当作已交卷答案。
+                    task_id = _first(record, "id", "taskId", "recordId", default="")
+                    info_course_id = str(record.get("courseInfoId") or course_info_id)
+                    if task_id and info_course_id:
+                        record_info_raw = self.client.get_exam_record_info(
+                            course_info_id=info_course_id, task_id=str(task_id), exam_id=str(exam_id),
+                            student_id=str(student_id) if student_id else None,
+                        )
+                        if not response_error(record_info_raw):
+                            info_questions = self._extract_info_questions(record_info_raw)
+                if info_questions:
+                    _merge_record_answers(questions, info_questions)
+                    answer_source = "exam/record/getInfo"
+                elif isinstance(record, dict) and record.get("taskExamProblemRecordList"):
+                    _merge_record_answers(questions, record["taskExamProblemRecordList"])
+                    answer_source = "taskExamProblemRecordList"
 
-        return {
-            "course": course_name,
-            "category": category_name,
-            "category_id": category_id,
-            "paper_name": paper_name,
-            "exam_id": exam_id,
-            "questions": questions,
-            "question_count": len(questions),
-            "answered_count": answered,
-            "my_answered_count": my_answered,
-            "answer_source": answer_source,
-            "raw": paper_raw,
-            "record_raw": record_info_raw,
-        }
+            if not submitted:
+                for question in questions:
+                    question["my_answer"] = ""
+            answered = sum(bool(q.get("std_answer")) for q in questions)
+            my_answered = sum(bool(q.get("my_answer")) for q in questions)
+            self.stats["papers"] += 1
+            self.stats["questions"] += len(questions)
+            self.stats["answered"] += answered
+            self.stats["my_answered"] += my_answered
+            if paper_raw is not None:
+                self.save_raw(course_dir, category_name, paper_name, exam_id, paper_raw)
+            if record_info_raw is not None:
+                self.save_raw(course_dir, category_name, paper_name, exam_id, record_info_raw, suffix="_record")
+            return {
+                "course": course_name, "category": category_name, "category_id": category_id,
+                "paper_name": paper_name, "exam_id": exam_id, "questions": questions,
+                "question_count": len(questions), "answered_count": answered,
+                "my_answered_count": my_answered, "answer_source": answer_source,
+                "raw": paper_raw, "record_raw": record_info_raw,
+            }
+        except Exception as error:
+            self.stats["errors"] += 1
+            self.logging.error(f"❌ 导出 [{category_name}] {paper_name} 失败：{error}")
+            if paper_raw is not None:
+                self.save_raw(course_dir, category_name, paper_name, exam_id, paper_raw)
+            return None
 
     def export_one_paper(
         self,
@@ -1335,8 +1420,13 @@ class QuizExportHandler:
         )
         if not data:
             return False
-        self.write_single_paper(course_dir, data)
-        return True
+        try:
+            self.write_single_paper(course_dir, data)
+            return True
+        except Exception as e:
+            self.stats["errors"] += 1
+            self.logging.error(f"❌ 写入试卷失败 {data['paper_name']}: {e}")
+            return False
 
     def write_single_paper(self, course_dir: Path, data: Dict[str, Any]) -> None:
         category_name = data["category"]
@@ -1347,7 +1437,7 @@ class QuizExportHandler:
         my_answered = data["my_answered_count"]
         answer_source = data["answer_source"]
 
-        base = f"{safe_filename(category_name)}_{safe_filename(paper_name)}_{exam_id}"
+        base = safe_filename(f"{category_name}_{paper_name}") + "_" + safe_filename(str(exam_id))
         payload = {
             "course": data["course"],
             "category": category_name,
@@ -1375,7 +1465,7 @@ class QuizExportHandler:
             f"- 题目数: {len(questions)}",
             f"- 正确答案: {answered}/{len(questions)}",
         ]
-        if my_answered > 0:
+        if self.include_my_answer and my_answered > 0:
             meta_lines.append(f"- 我的答案: {my_answered}/{len(questions)}")
         if self.dev_mode:
             meta_lines.append(f"- 答案来源: {source_label}")
@@ -1467,7 +1557,7 @@ class QuizExportHandler:
         my_answered = sum(1 for q in merged_questions if q.get("my_answer"))
 
         exported_at = time.strftime("%Y-%m-%d %H:%M:%S")
-        base = f"{safe_filename(category_name)}_全部章节测验_{safe_filename(course_name)}"
+        base = safe_filename(f"{category_name}_全部章节测验_{course_name}")
         payload = {
             "course": course_name,
             "category": category_name,
@@ -1496,7 +1586,7 @@ class QuizExportHandler:
             f"- 题目数: {total}",
             f"- 正确答案: {answered}/{total}",
         ]
-        if my_answered > 0:
+        if self.include_my_answer and my_answered > 0:
             meta_lines.append(f"- 我的答案: {my_answered}/{total}")
         if self.dev_mode:
             meta_lines.append(f"- 答案来源: 作答记录接口/试卷接口（见 summary）")
@@ -1594,7 +1684,7 @@ class QuizExportHandler:
         raw_dir = course_dir / "raw"
         raw_dir.mkdir(parents=True, exist_ok=True)
         path = raw_dir / (
-            f"{safe_filename(category_name)}_{safe_filename(paper_name)}_{exam_id}{suffix}.json"
+            safe_filename(f"{category_name}_{paper_name}") + "_" + safe_filename(str(exam_id)) + f"{suffix}.json"
         )
         try:
             path.write_text(

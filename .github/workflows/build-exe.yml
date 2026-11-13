@@ -2,283 +2,118 @@ name: 多平台构建
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main, 'codex/**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Package ${{ matrix.platform }}-${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-2022
             platform: windows
             arch: x64
-            ext: .exe
-            name: Windows
-            icon: 🪟
-          - os: macos-latest
-            platform: macos
-            arch: x64
-            ext: ""
-            name: macOS
-            icon: 🍎
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
             arch: x64
-            ext: ""
-            name: Linux
-            icon: 🐧
-
+          - os: macos-15-intel
+            platform: macos
+            arch: x64
+          - os: macos-15
+            platform: macos
+            arch: arm64
     steps:
-      - name: ${{ matrix.icon }} 检出代码 (${{ matrix.name }})
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: 获取版本信息
+          python-version: '3.12'
+      - name: Set build version
         shell: bash
         run: |
-          echo "TAG_NAME=${{github.ref_name}}" >> $GITHUB_ENV
-          if git describe --tags --abbrev=0 HEAD^ 2>/dev/null; then
-            echo "PREV_TAG=$(git describe --tags --abbrev=0 HEAD^)" >> $GITHUB_ENV
-          else
-            echo "PREV_TAG=" >> $GITHUB_ENV
-          fi
-
-      - name: 注入环境变量 (Spec文件)
-        if: matrix.platform == 'windows'
-        uses: NicoG60/simple-template-renderer@v1
-        with:
-          input: StartWorkLite.spec
+          python - <<'PY'
+          import os
+          version = os.environ['GITHUB_REF_NAME'] if os.environ['GITHUB_REF'].startswith('refs/tags/v') else 'verify-' + os.environ['GITHUB_SHA'][:12]
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write('TAG_NAME=' + version + '\n')
+          print('Build version:', version)
+          PY
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Build and run executable self-test
+        shell: bash
         env:
-          PYINSTALL_KEY: ${{ secrets.PYINSTALL_KEY }}
-          TAG_NAME: ${{ env.TAG_NAME }}
-
-      - name: 注入环境变量 (Python文件)
-        uses: NicoG60/simple-template-renderer@v1
-        with:
-          input: StartWork.py
-        env:
-          TAG_NAME: ${{ env.TAG_NAME }}
-
-      - name: ${{ matrix.icon }} 显示构建信息 (${{ matrix.name }})
-        shell: bash
-        run: |
-          echo "======================================"
-          echo "${{ matrix.icon }} 构建信息 - ${{ matrix.name }}"
-          echo "======================================"
-          echo "平台: ${{ matrix.platform }}"
-          echo "架构: ${{ matrix.arch }}"
-          echo "运行器: ${{ matrix.os }}"
-          echo "上一版本: ${{ env.PREV_TAG }}"
-          echo "当前版本: ${{ env.TAG_NAME }}"
-          echo "======================================"
-
-      - name: 配置 Python 环境
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-
-      - name: 安装系统依赖 (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-
-      - name: 安装构建依赖
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          # 使用更新的 PyInstaller 版本解决 macOS 代码签名问题
-          if [ "${{ matrix.platform }}" = "macos" ]; then
-            pip install pyinstaller==5.13.2
-          else
-            pip install pyinstaller==4.5
-          fi
-          pip install wheel
-          pip install tinyaes
-          pip install -r requirements.txt
-
-      - name: ${{ matrix.icon }} 构建可执行文件 (${{ matrix.name }})
-        shell: bash
-        run: |
-          echo "🔨 开始构建 ${{ matrix.name }} 可执行文件..."
-          
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            pyinstaller StartWorkLite.spec
-          else
-            # Linux 构建
-            pyinstaller --onefile \
-              --name "MoocWorkAnswer-${{ env.TAG_NAME }}-lite-${{ matrix.platform }}" \
-              --distpath dist \
-              --workpath build \
-              --specpath . \
-              --console \
-              StartWork.py
-          fi
-          
-          echo "✅ ${{ matrix.name }} 构建完成"
-
-      - name: 验证构建结果
-        shell: bash
-        run: |
-          if ls dist/* 1> /dev/null 2>&1; then
-            echo "✅ ${{ matrix.name }} 构建文件生成成功"
-            ls -la dist/
-          else
-            echo "❌ ${{ matrix.name }} 构建文件生成失败"
-            exit 1
-          fi
-
-      - name: 重命名输出文件并设置权限
-        shell: bash
-        run: |
-          cd dist
-          for file in *; do
-            if [ -f "$file" ]; then
-              # 获取文件扩展名
-              if [ "${{ matrix.platform }}" = "windows" ]; then
-                ext=".exe"
-              else
-                ext=""
-              fi
-              
-              # 统一文件名格式
-              new_name="MoocWorkAnswer-${{ env.TAG_NAME }}-lite-${{ matrix.platform }}${ext}"
-              
-              # 检查文件名是否已经是目标名称
-              if [ "$file" != "$new_name" ]; then
-                mv "$file" "$new_name"
-                echo "✅ 文件重命名: $file -> $new_name"
-              else
-                echo "ℹ️ 文件名已正确，跳过重命名: $file"
-              fi
-              
-              # 为 macOS 和 Linux 设置执行权限和文件属性
-              if [ "${{ matrix.platform }}" != "windows" ]; then
-                chmod +x "$new_name"
-                echo "✅ 已设置执行权限: $new_name"
-                
-                # macOS 特殊处理：设置文件类型
-                if [ "${{ matrix.platform }}" = "macos" ]; then
-                  # 确保文件被识别为 Unix 可执行文件
-                  file "$new_name"
-                  ls -la "$new_name"
-                fi
-              fi
-            fi
-          done
-
-      - name: 上传构建产物
+          MOOC_PLATFORM: ${{ matrix.platform }}
+          MOOC_ARCH: ${{ matrix.arch }}
+        run: python .github/scripts/build_package.py --version "$TAG_NAME" --platform "$MOOC_PLATFORM" --arch "$MOOC_ARCH"
+      - name: Upload executable and verification report
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/*
-          retention-days: 1
-          # 尝试保持文件权限
-          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ matrix.platform }}-${{ matrix.arch }}
+          path: '*.log'
+          if-no-files-found: ignore
+          retention-days: 3
 
   release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: 下载所有构建产物
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          path: artifacts
-
-      - name: 整理发布文件
+          pattern: build-*
+          path: release-files
+          merge-multiple: true
+      - name: Restore executable permissions
         run: |
-          mkdir -p release-files
-          find artifacts -name "*" -type f -exec cp {} release-files/ \;
-          
-          # 确保 macOS 和 Linux 文件有执行权限
-          cd release-files
-          for file in *; do
-            if [[ "$file" != *.exe ]]; then
-              chmod +x "$file"
-              echo "✅ 设置执行权限: $file"
-              
-              # 检查 macOS 文件
-              if [[ "$file" == *"macos"* ]]; then
-                echo "🍎 macOS 文件信息:"
-                file "$file" || echo "file 命令不可用"
-                ls -la "$file"
-              fi
-            fi
-          done
-          
-          echo "📦 所有发布文件:"
-          ls -la
-
-      - name: 获取更新日志
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('release-files').iterdir():
+              if path.suffix not in ('.exe', '.json', '.sha256'):
+                  path.chmod(path.stat().st_mode | 0o111)
+          PY
+      - name: Generate release notes
         shell: bash
         env:
           TAG_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PREV_TAG="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
-          bash .github/scripts/generate-release-notes.sh \
-            "${TAG_NAME}" \
-            changelog.txt \
-            "${PREV_TAG}"
-          cat changelog.txt
-
-      - name: 🚀 创建多平台发布
-        id: create_release
+          bash .github/scripts/generate-release-notes.sh "$TAG_NAME" changelog.txt "$PREV_TAG"
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: "🚀 Release ${{github.ref_name}}"
+          name: '🚀 Release ${{ github.ref_name }}'
           body_path: changelog.txt
-          files: |
-            release-files/*
+          files: release-files/*
           draft: false
           prerelease: false
           make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # - name: 更新 README 发布链接
-      #   run: |
-      #     echo "📝 更新 README.md 中的下载链接..."
-          
-      #     # 更新 README.md 中的下载链接
-      #     sed -i "s|https://github.com/11273/mooc-work-answer/releases/latest|${{ steps.create_release.outputs.url }}|g" README.md
-          
-      #     # 检查是否有变更
-      #     if git diff --quiet README.md; then
-      #       echo "ℹ️ README.md 无需更新"
-      #     else
-      #       echo "✅ README.md 已更新"
-      #       git config --global user.name "🤖 GitHub Actions"
-      #       git config --global user.email "actions@github.com"
-      #       git add README.md
-      #       git commit -m "📝 更新 README.md 发布链接至 ${{github.ref_name}}"
-      #     fi
-
-      # - name: 推送更改到仓库
-      #   if: success()
-      #   run: |
-      #     git config --global user.name "🤖 GitHub Actions"
-      #     git config --global user.email "actions@github.com"
-          
-      #     # 先拉取远程更改避免冲突
-      #     git pull origin main --rebase || true
-          
-      #     # 如果有更改则推送
-      #     if ! git diff --quiet HEAD~1 HEAD; then
-      #       git push https://${{ secrets.PAT_TOKEN }}@github.com/11273/mooc-work-answer.git main
-      #       echo "✅ 成功推送更改到仓库"
-      #     else
-      #       echo "ℹ️ 没有需要推送的更改"
-      #     fi

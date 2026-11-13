@@ -5,13 +5,14 @@ from typing import Dict, Any, Optional, List
 from MoocMain.log import Logger
 from base.api_client import BaseAPIClient
 from base.util import aes_encrypt_ecb
+from base.pagination import collect_rows
 
 logging = Logger(__name__).get_log()
 
 # API 基础 URL
 SSO_URL = "https://sso.icve.com.cn/prod-api"
 ZYK_BASE_URL = "https://zyk.icve.com.cn/prod-api"
-ZYK_UPLOAD_BASE_URL = "https://upload.icve.com.cn"
+ZYK_UPLOAD_BASE_URL = "https://urc.icve.com.cn/stage-api"
 
 
 class ZYKMoocApi(BaseAPIClient):
@@ -55,8 +56,6 @@ class ZYKMoocApi(BaseAPIClient):
             return None
 
         token = result
-        if token:
-            logging.debug(f"🔑 获取到 token: {token}")
         return token
 
     def _get_access_token(self, token: str) -> Optional[str]:
@@ -64,7 +63,7 @@ class ZYKMoocApi(BaseAPIClient):
         pass_login_url = f"/auth/passLogin?token={token}"
         result = self.get(pass_login_url)
 
-        if result and "access_token" in result:
+        if isinstance(result, dict) and "access_token" in result:
             return result["access_token"]
         return None
 
@@ -72,10 +71,13 @@ class ZYKMoocApi(BaseAPIClient):
         """获取用户信息"""
         endpoint = "/system/user/getInfo"
         response = self.get(endpoint)
+        if not isinstance(response, dict) or not isinstance(response.get("user"), dict):
+            logging.error("❌ 获取用户信息失败，请重新登录")
+            return
         user = response.get("user", {})
 
         # 获取 student_id
-        self.student_id = user['userId']
+        self.student_id = user.get('userId') or ''
 
         # 记录日志
         logging.info(
@@ -105,6 +107,10 @@ class ZYKMoocApi(BaseAPIClient):
         params = {"courseInfoId": course_info_id}
         return self.get(endpoint, params=params)
 
+    def my_course_list_all(self, flag: int = 1) -> Dict[str, Any]:
+        rows = collect_rows(lambda page, size: self.my_course_list(page_num=page, page_size=size, flag=flag))
+        return {"rows": rows, "total": len(rows)}
+
     def course_content(self, source_id: str) -> Dict[str, Any]:
         """获取单个课程详细信息"""
         endpoint = f"/teacher/courseContent/{source_id}"
@@ -128,7 +134,7 @@ class ZYKMoocApi(BaseAPIClient):
             "totalNum": total_num
         }
         json_str = json.dumps(params, separators=(',', ':'))
-        return self.put(endpoint, data=aes_encrypt_ecb(b"djekiytolkijduey", json_str))
+        return self.put(endpoint, data=aes_encrypt_ecb(b"djekiytolkijduey", json_str), origin_response=True)
 
     def upload_file_status(self, url_short: str) -> Dict[str, Any]:
         """获取单个课程详细信息"""

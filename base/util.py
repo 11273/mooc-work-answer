@@ -1,4 +1,5 @@
 import base64
+import math
 
 import requests
 from Crypto.Cipher import AES
@@ -61,12 +62,16 @@ def parse_duration(duration: str) -> int:
     :param duration: 时间字符串，例如 '00:00:20.1670000' 或 '00:00:31'
     :return: 对应的总秒数（int）
     """
-    if ':' in str(duration):
-        h, m, s = duration.split(":")  # 拆分时、分、秒
-        s = float(s)  # 处理可能的毫秒部分
-        return int(float(h) * 3600 + float(m) * 60 + s)  # 转换为整数秒
-    else:
-        return int(duration)
+    parts = str(duration).strip().split(":")
+    if not 1 <= len(parts) <= 3:
+        raise ValueError("时长格式错误")
+    seconds = 0.0
+    for part in parts:
+        number = float(part)
+        if not math.isfinite(number) or number < 0:
+            raise ValueError("时长必须是非负有限数值")
+        seconds = seconds * 60 + number
+    return int(seconds)
 
 
 def get_mp3_duration(mp3_url: str) -> float:
@@ -76,12 +81,14 @@ def get_mp3_duration(mp3_url: str) -> float:
     :param mp3_url: MP3 文件的 URL
     :return: MP3 时长（秒）
     """
-    response = requests.get(mp3_url, stream=True)
+    response = requests.get(mp3_url, stream=True, timeout=(10, 30))
     if response.status_code != 200:
+        response.close()
         raise Exception("无法下载 MP3 文件")
 
     # 读取前 100KB 数据
     data = response.raw.read(100000)
+    response.close()
 
     # MPEG 版本映射表
     mpeg_versions = {
@@ -103,6 +110,7 @@ def get_mp3_duration(mp3_url: str) -> float:
         "MPEG-1": [None, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
         "MPEG-2": [None, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
     }
+    bitrates["MPEG-2.5"] = bitrates["MPEG-2"]
 
     file_size = int(response.headers.get("Content-Length", 0))
     if file_size == 0:
@@ -140,7 +148,7 @@ def get_mp3_duration(mp3_url: str) -> float:
 
             # 计算帧大小
             padding = (data[i + 2] >> 1) & 0x01
-            frame_size = int((144 * bitrate) / sample_rate + padding)
+            frame_size = int(((144 if mpeg_version == "MPEG-1" else 72) * bitrate) / sample_rate + padding)
 
             # 统计比特率和帧数
             total_bitrate += bitrate

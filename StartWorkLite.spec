@@ -1,9 +1,36 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+from pathlib import Path
+import sys
 
-block_cipher = pyi_crypto.PyiBlockCipher(key='${PYINSTALL_KEY}')
+from PyInstaller.utils.hooks import collect_data_files
 
-
-a = Analysis(['StartWork.py'], pathex=[], binaries=[], datas=[], hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[], win_no_prefer_redirects=False, win_private_assemblies=False, cipher=block_cipher, noarchive=False)
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-exe = EXE(pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [], name='MoocWorkAnswer-${TAG_NAME}-lite', debug=False, bootloader_ignore_signals=False, strip=False, upx=True, upx_exclude=[], runtime_tmpdir=None, console=True, disable_windowed_traceback=False, target_arch=None, codesign_identity=None, entitlements_file=None , icon='images\\icon.ico')
+root = Path(SPECPATH)
+# python-docx uses parts/../templates paths; keep the physical parts directory too.
+datas = collect_data_files("docx", include_py_files=True) + [(str(root / "pyproject.toml"), ".")]
+a = Analysis(
+    [str(root / "StartWork.py")],
+    pathex=[str(root)],
+    binaries=[],
+    datas=datas,
+    hiddenimports=[],
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [("X utf8", None, "OPTION")],
+    name=os.environ.get("MOOC_BUILD_NAME", "MoocWorkAnswer-lite"),
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=True,
+    icon=str(root / "images" / "icon.ico") if sys.platform == "win32" else None,
+)

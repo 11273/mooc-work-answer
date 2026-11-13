@@ -4,29 +4,33 @@ from typing import List, Dict, Any
 
 from MoocMain.log import Logger
 from ZYKMoocMain.api import ZYKMoocApi
-from base.util import parse_duration, get_mp3_duration
+from base.resources import ASSESSMENT_TYPES, VIDEO_TYPES, AUDIO_TYPES, DOCUMENT_TYPES, ResourceUnavailable, resource_metadata, resource_total
 
 
 class ZYKMoocHandler:
-    def __init__(self, username: str = "", password: str = "", jump_content: str = "", token: str = None):
+    def __init__(self, username: str = "", password: str = "", jump_content: str = "", token: str = None, dry_run: bool = False, client=None):
         """初始化 API 客户端和日志"""
         self.jump_list = []
+        self.dry_run = dry_run
+        self.stats = {"courses": 0, "checked": 0, "updated": 0, "skipped": 0, "unavailable": 0, "errors": 0}
         if jump_content and '#' in jump_content:
             self.jump_list = jump_content.split('#')[1:]
-        
+
         # 根据是否提供token选择不同的初始化方式
-        if token:
+        if client is not None:
+            self.client = client
+        elif token:
             self.client = ZYKMoocApi(token=token)
         else:
             self.client = ZYKMoocApi(username, password)
-            
-        self.logging = Logger(__name__).get_log()
-        self.start_courses()
 
-    def start_courses(self) -> None:
+        self.logging = Logger(__name__).get_log()
+        self.success = self.start_courses()
+
+    def start_courses(self) -> bool:
         """获取并处理课程列表"""
         try:
-            courses = self.client.my_course_list(page_size=9999)
+            courses = self.client.my_course_list_all()
             total_courses = courses.get("total", 0)
             course_rows = courses.get("rows", [])
 
@@ -34,7 +38,7 @@ class ZYKMoocHandler:
 
             if not course_rows:
                 self.logging.warning("⚠️ 当前没有课程数据")
-                return
+                return True
             self.logging.info("")
             self.logging.info("➕➕➕ 课程读取 ➕➕➕")
 
@@ -67,12 +71,16 @@ class ZYKMoocHandler:
             else:
                 self.logging.info("✅ 没有需要跳过的课程")
             for course in course_rows:
-                if any(s in course.get("courseName") for s in self.jump_list):
+                if any(s in (course.get("courseName") or "") for s in self.jump_list):
                     continue
                 self.process_course(course)
+            self.logging.info(f"📊 {'只读检查' if self.dry_run else '学习管理'}: {self.stats}")
+            return self.stats["errors"] == 0
 
         except Exception as e:
+            self.stats["errors"] += 1
             self.logging.error(f"❌ 获取课程失败: {e}")
+            return False
 
     def process_course(self, course: Dict[str, Any]) -> None:
         """处理单个课程"""
@@ -89,8 +97,14 @@ class ZYKMoocHandler:
 
         if course_info_id:
             study_design_list = self.client.study_design_list(course_info_id)
+            if not isinstance(study_design_list, list):
+                self.stats["errors"] += 1
+                self.logging.error(f"❌ 读取课程目录失败: {course_name}")
+                return
+            self.stats["courses"] += 1
             self.print_course_structure(study_design_list)
         else:
+            self.stats["errors"] += 1
             self.logging.warning(f"⚠️ 课程 {course_name} 缺少 CourseInfoId，跳过")
 
     def print_course_structure(self, nodes: List[Dict[str, Any]], indent: int = 0) -> None:
@@ -109,62 +123,45 @@ class ZYKMoocHandler:
                 self.handle_resource(node, indent)
 
     def handle_resource(self, node: Dict[str, Any], indent: int = 0) -> None:
-        """处理最终的资源，并保存学习记录"""
-        resource_name = node.get("name", "未知资源")
-        file_type = node.get("fileType", "未知类型")
-        student_study_record = node.get('studentStudyRecord')
-        speed = (student_study_record or {}).get('speed', 0)
-        prefix = " " * ((indent + 1) * 4)  # 每层缩进 4 个空格
-
-        self.logging.info(f"{prefix} 💭 资源: {resource_name} | 类型: {file_type} | 进度: {speed}")
-
-        # 跳过作业
-        if file_type == "作业":
-            self.logging.info(f"{prefix} ✅ 跳过作业")
+        """检查资源并在普通模式保存进度；作业、测验和考试始终跳过。"""
+        resource_name = node.get("name") or "未知资源"
+        file_type = node.get("fileType") or "未知类型"
+        record = node.get("studentStudyRecord") or {}
+        prefix = " " * ((indent + 1) * 4)
+        if file_type in ASSESSMENT_TYPES or str(record.get("speed")) in ("100", "100.0"):
+            self.stats["skipped"] += 1
             return
-
-        # 进度已经到100的不再处理
-        if speed == 100:
-            self.logging.info(f"{prefix} ✅ 跳过进度: {speed}")
-            return
-
         try:
-            # 默认学习总数1：图片
-            total_num = 1
             source_id = node.get("id")
-            # 获取课件信息
-            course_content = self.client.course_content(source_id)
-            # 不知道应该学习多久，需要调用接口并转换
-            url_short = course_content.get("urlShort")
-            # mp3 时长接口无法查询，本地获取
-            if file_type == "mp3":
-                mp3_duration = get_mp3_duration(course_content.get('fileUrl'))
-                total_num = int(mp3_duration)
-            if file_type == "zip":
-                total_num = 1
-            elif url_short:
-                file_status = self.client.upload_file_status(url_short)
-                file_status_args = file_status.get('args')
-                # 视频类型
-                file_status_args_duration = file_status_args.get('duration')
-                # 文件类型
-                file_status_args_has_txt_file = file_status_args.get('has_txt_file')
-                if file_status_args_duration:
-                    total_num = parse_duration(file_status_args_duration)
-                elif file_status_args_has_txt_file:
-                    total_num = file_status_args.get('page_count')
-
-            course_info_id = node.get("courseInfoId")
-            parent_id = node.get("parentId")
-            study_time = total_num
-
-            wait_time = random.randint(1, 3)
-
-            self.logging.info(f"{prefix} ⏳ 学习数: {total_num}，等待 {wait_time} 秒...")
-
-            time.sleep(wait_time)
-            response = self.client.study_record(course_info_id, parent_id, study_time, source_id,
-                                                total_num, total_num, total_num)
-            self.logging.info(f"{prefix} ✅ API 响应: {response['msg']}")
-        except Exception as e:
-            self.logging.error(f"{prefix} ❌ 处理资源失败: {e}")
+            if not source_id or not node.get("courseInfoId"):
+                raise ValueError("资源缺少课程或课件 ID")
+            content = self.client.course_content(source_id)
+            if not isinstance(content, dict):
+                raise RuntimeError("获取课件信息失败")
+            metadata = dict(content)
+            if content.get("fileUrl"):
+                metadata.update(resource_metadata(content["fileUrl"]))
+            if content.get("urlShort") and file_type.lower() in VIDEO_TYPES | AUDIO_TYPES | DOCUMENT_TYPES:
+                status = self.client.upload_file_status(content["urlShort"])
+                if not isinstance(status, dict):
+                    raise RuntimeError("获取课件时长或页数失败")
+                metadata.update(resource_metadata(status.get("args") or {}))
+            total_num = resource_total(file_type, metadata)
+            self.stats["checked"] += 1
+            if self.dry_run:
+                self.logging.info(f"{prefix}🔎 {resource_name} ({file_type})，学习数 {total_num}")
+                return
+            time.sleep(random.randint(1, 3))
+            response = self.client.study_record(node["courseInfoId"], node.get("parentId"), total_num,
+                                                source_id, total_num, total_num, total_num)
+            if not isinstance(response, dict) or response.get("code") not in (200, "200"):
+                raise RuntimeError(response.get("msg", "保存学习记录失败") if isinstance(response, dict) else "保存学习记录失败")
+            self.stats["updated"] += 1
+            self.logging.info(f"{prefix}✅ {resource_name}: {response.get('msg', '保存成功')}")
+        except ResourceUnavailable as error:
+            self.stats["skipped"] += 1
+            self.stats["unavailable"] = self.stats.get("unavailable", 0) + 1
+            self.logging.warning(f"{prefix}⚠️ {resource_name}: {error}")
+        except Exception as error:
+            self.stats["errors"] += 1
+            self.logging.error(f"{prefix}❌ {resource_name}: {error}")

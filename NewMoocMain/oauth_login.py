@@ -288,7 +288,7 @@ class OAuthLoginHandler:
                     if 'token' in query_params:
                         token = query_params['token'][0]
                         oauth_handler.token = token
-                        logger.debug(f"✅ 回调成功，token: {token}")
+                        logger.debug("✅ OAuth 回调成功，认证令牌已获取")
                         
                         # 发送成功响应
                         self.send_response(200)
@@ -1034,7 +1034,7 @@ class OAuthLoginHandler:
                 self.port = self.find_available_port(self.port)
                 
                 # 创建HTTP服务器
-                self.server = HTTPServer(('', self.port), self.create_request_handler())
+                self.server = HTTPServer(('127.0.0.1', self.port), self.create_request_handler())
                 self.is_running = True
                 
                 logger.info(f"🚀 OAuth服务已就绪，端口: {self.port}")

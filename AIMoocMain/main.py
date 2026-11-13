@@ -1,33 +1,34 @@
-import json
 import random
 import time
 from typing import List, Dict, Any
 
 from MoocMain.log import Logger
 from AIMoocMain.api import AIMoocApi
-from base.util import parse_duration, get_mp3_duration
+from base.resources import ASSESSMENT_TYPES, ResourceUnavailable, completed_resource_ids, resource_metadata, resource_total
 
 
 class AIMoocHandler:
-    def __init__(self, jump_content: str = "", token: str = None, username: str = None, password: str = None):
+    def __init__(self, jump_content: str = "", token: str = None, username: str = None, password: str = None, dry_run: bool = False, client=None):
         """初始化 API 客户端和日志"""
         # 跳过课程列表
         self.jump_list = []
         # 已完成的课程id列表
-        self.study_record_list = []
+        self.study_record_list = set()
+        self.dry_run = dry_run
+        self.stats = {"courses": 0, "checked": 0, "updated": 0, "skipped": 0, "unavailable": 0, "errors": 0}
         if jump_content and "#" in jump_content:
             self.jump_list = jump_content.split("#")[1:]
 
         # 根据是否提供token选择不同的初始化方式
-        self.client = AIMoocApi(token=token, username=username, password=password)
+        self.client = client or AIMoocApi(token=token, username=username, password=password)
 
         self.logging = Logger(__name__).get_log()
-        self.start_courses()
+        self.success = self.start_courses()
 
-    def start_courses(self) -> None:
+    def start_courses(self) -> bool:
         """获取并处理课程列表"""
         try:
-            courses = self.client.my_course_list(page_size=9999)
+            courses = self.client.my_course_list_all()
             total_courses = courses.get("total", 0)
             course_rows = courses.get("rows", [])
 
@@ -37,7 +38,7 @@ class AIMoocHandler:
 
             if not course_rows:
                 self.logging.warning("⚠️ 当前没有课程数据")
-                return
+                return True
             self.logging.info("")
             self.logging.info("➕➕➕ 课程读取 ➕➕➕")
 
@@ -71,12 +72,16 @@ class AIMoocHandler:
             else:
                 self.logging.info("✅ 没有需要跳过的课程")
             for course in course_rows:
-                if any(s in course.get("courseName") for s in self.jump_list):
+                if any(s in (course.get("courseName") or "") for s in self.jump_list):
                     continue
                 self.process_course(course)
+            self.logging.info(f"📊 {'只读检查' if self.dry_run else '学习管理'}: {self.stats}")
+            return self.stats["errors"] == 0
 
         except Exception as e:
+            self.stats["errors"] += 1
             self.logging.error(f"❌ 获取课程失败: {e}")
+            return False
 
     def process_course(self, course: Dict[str, Any]) -> None:
         """处理单个课程"""
@@ -94,16 +99,27 @@ class AIMoocHandler:
 
         if course_info_id:
             study_design_list = self.client.study_design_list(course_info_id, course_id)
-            self.study_record_list = self.client.study_record_list(
+            completed = self.client.study_record_list(
                 course_info_id, course_id
             )
+            if not isinstance(study_design_list, list) or not isinstance(completed, list):
+                self.logging.error(f"❌ 读取课程目录或学习记录失败: {course_name}")
+                self.stats["errors"] += 1
+                return
+            self.study_record_list = completed_resource_ids(completed)
+            self.stats["courses"] += 1
             for node in study_design_list:
                 parent_id = node.get("id")
                 cell_list = self.client.get_cell_list(
                     course_info_id, course_id, parent_id
                 )
+                if not isinstance(cell_list, list):
+                    self.logging.error(f"❌ 读取章节失败: {course_name}")
+                    self.stats["errors"] += 1
+                    continue
                 self.print_course_structure(cell_list, parent_id)
         else:
+            self.stats["errors"] += 1
             self.logging.warning(f"⚠️ 课程 {course_name} 缺少 CourseInfoId，跳过")
 
     def print_course_structure(
@@ -123,95 +139,44 @@ class AIMoocHandler:
             else:
                 self.handle_resource(node, parent_id, indent)
 
-    def handle_resource(
-        self, node: Dict[str, Any], parent_id: str, indent: int = 0
-    ) -> None:
-        """处理最终的资源，并保存学习记录"""
-        resource_name = node.get("name", "未知资源")
-        file_type = node.get("fileType", "未知类型")
-        course_id = node.get("courseId")
+    def handle_resource(self, node: Dict[str, Any], parent_id: str, indent: int = 0) -> None:
+        """读取资源元数据；--check 仅检查，不写入学习记录。"""
+        resource_name = node.get("name") or "未知资源"
+        file_type = node.get("fileType") or "未知类型"
         source_id = node.get("id")
-        prefix = " " * ((indent + 1) * 4)  # 每层缩进 4 个空格
-
-        self.logging.info(f"{prefix} 💭 资源: {resource_name} | 类型: {file_type}")
-
-        # 跳过作业
-        if file_type == "作业":
-            self.logging.info(f"{prefix} ⏭ 跳过作业")
+        prefix = " " * ((indent + 1) * 4)
+        if file_type in ASSESSMENT_TYPES:
+            self.stats["skipped"] += 1
+            self.logging.info(f"{prefix}⏭️ 跳过{file_type}: {resource_name}")
             return
-
-        # 跳过考试
-        if file_type == "考试":
-            self.logging.info(f"{prefix} ⏭ 跳过考试")
+        record = node.get("studentStudyRecord") or {}
+        if str(source_id) in self.study_record_list or str(record.get("speed")) in ("100", "100.0"):
+            self.stats["skipped"] += 1
             return
-
-        # 跳过测验
-        if file_type == "测验":
-            self.logging.info(f"{prefix} ⏭ 跳过测验")
-            return
-
-        # 跳过子节点
-        if file_type == "子节点":
-            self.logging.info(f"{prefix} ⏭ 跳过无法展开的子节点")
-            return
-
-        # 跳过文件夹
-        if file_type == "文件夹":
-            self.logging.info(f"{prefix} ⏭ 跳过文件夹")
-            return
-
-        # 已完成的课程不再处理
-        if source_id in self.study_record_list:
-            self.logging.info(f"{prefix} ⏭ 跳过已完成的课程: {resource_name}")
-            return
-
         try:
-            # 默认学习总数
-            total_num = random.randint(1, 10)
-            course_content = node.get("fileUrl", "")
-            if course_content and course_content.strip() != "":
-                course_content = json.loads(course_content)
-                url_short = course_content.get("url")
-            # mp3 时长接口无法查询，本地获取
-            if file_type == "audio":
-                mp3_duration = get_mp3_duration(course_content.get("ossOriUrl"))
-                total_num = int(mp3_duration)
-            elif file_type == "ppt":
-                total_num = random.randint(1, 10)
-            elif file_type == "img":
-                total_num = random.randint(1, 10)
-            elif file_type == "图文":
-                total_num = random.randint(1, 10)
-            elif url_short:
-                # 视频类型
-                file_status_args_duration = course_content.get("duration")
-                # 文件类型
-                file_status_args_has_txt_file = course_content.get("has_txt_file")
-                if file_status_args_duration:
-                    total_num = parse_duration(file_status_args_duration)
-                elif file_status_args_has_txt_file:
-                    total_num = course_content.get("page_count")
-
-            course_info_id = node.get("courseInfoId")
-            study_time = total_num
-
-            wait_time = round(random.uniform(0.5, 1.5), 2)
-
-            self.logging.info(
-                f"{prefix} ⏳ 学习数: {total_num}，等待 {wait_time} 秒..."
-            )
-
-            time.sleep(wait_time)
+            if not source_id or not node.get("courseInfoId") or not node.get("courseId"):
+                raise ValueError("资源缺少课程或课件 ID")
+            metadata = resource_metadata(node.get("fileUrl"))
+            if not metadata.get("duration") and node.get("videoTime"):
+                metadata["videoTime"] = node["videoTime"]
+            total_num = resource_total(file_type, metadata)
+            self.stats["checked"] += 1
+            if self.dry_run:
+                self.logging.info(f"{prefix}🔎 {resource_name} ({file_type})，学习数 {total_num}")
+                return
+            time.sleep(round(random.uniform(0.5, 1.5), 2))
             response = self.client.study_record(
-                course_id,
-                course_info_id,
-                parent_id,
-                study_time,
-                source_id,
-                total_num,
-                total_num,
-                total_num,
+                node["courseId"], node["courseInfoId"], node.get("parentId") or parent_id,
+                total_num, source_id, total_num, total_num, total_num,
             )
-            self.logging.info(f"{prefix} ✅ API 响应: {response['msg']}")
-        except Exception as e:
-            self.logging.error(f"{prefix} ❌ 处理资源失败: {e}")
+            if not isinstance(response, dict) or response.get("code") not in (200, "200"):
+                raise RuntimeError(response.get("msg", "保存学习记录失败") if isinstance(response, dict) else "保存学习记录失败")
+            self.stats["updated"] += 1
+            self.logging.info(f"{prefix}✅ {resource_name}: {response.get('msg', '保存成功')}")
+        except ResourceUnavailable as error:
+            self.stats["skipped"] += 1
+            self.stats["unavailable"] = self.stats.get("unavailable", 0) + 1
+            self.logging.warning(f"{prefix}⚠️ {resource_name}: {error}")
+        except Exception as error:
+            self.stats["errors"] += 1
+            self.logging.error(f"{prefix}❌ {resource_name}: {error}")

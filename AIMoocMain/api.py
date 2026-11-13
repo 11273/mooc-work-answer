@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, List
 
 from MoocMain.log import Logger
 from base.api_client import BaseAPIClient
+from base.pagination import collect_rows
 
 logging = Logger(__name__).get_log()
 
@@ -74,8 +75,6 @@ class AIMoocApi(BaseAPIClient):
             return None
 
         token = result
-        if token:
-            logging.debug(f"🔑 获取到 token: {token}")
         return token
 
     def _get_access_token(self, token: str) -> Optional[str]:
@@ -83,7 +82,7 @@ class AIMoocApi(BaseAPIClient):
         pass_login_url = f"/auth/passLogin?token={token}"
         result = self.get(pass_login_url)
 
-        if result and "access_token" in result:
+        if isinstance(result, dict) and "access_token" in result:
             return result["access_token"]
         return None
 
@@ -91,6 +90,9 @@ class AIMoocApi(BaseAPIClient):
         """获取用户信息"""
         endpoint = "/system/baseUser/info"
         user = self.get(endpoint) or {}
+        if not isinstance(user, dict):
+            logging.error("❌ 获取用户信息失败，请重新登录")
+            return
         self.user_info = user if isinstance(user, dict) else {}
         self.user_id = _parse_jwt_user_id(self.access_token) or str(
             self.user_info.get("id") or self.user_info.get("userId") or ""
@@ -152,6 +154,17 @@ class AIMoocApi(BaseAPIClient):
         endpoint = "/course/courseDesign/getStudentDesignList"
         params = {"courseInfoId": course_info_id, "courseId": course_id}
         return self.get(endpoint, params=params)
+
+    def my_course_list_all(self, flag: int = 1) -> Dict[str, Any]:
+        """学习管理默认仅获取进行中课程，逐页读取避免课程较多时截断。"""
+        rows = collect_rows(lambda page, size: self.my_course_list(page_num=page, page_size=size, flag=flag))
+        return {"rows": rows, "total": len(rows)}
+
+    def exam_list_all(self, course_info_id: str, course_id: str, category_id: int) -> Dict[str, Any]:
+        rows = collect_rows(lambda page, size: self.get_exam_list_by_student(
+            course_info_id, course_id, category_id, page_num=page, page_size=size
+        ))
+        return {"rows": rows, "total": len(rows)}
 
     def study_record_list(
         self, course_info_id: str, course_id: str

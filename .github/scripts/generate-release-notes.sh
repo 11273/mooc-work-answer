@@ -112,9 +112,9 @@ VIEW_COUNTER_ID="$(printf '%s-%s' "${REPOSITORY}" "${TAG_NAME}" | sed 's/[^a-zA-
   fi
 
   printf '### 📦 支持平台\n\n'
-  printf -- '- 🪟 **Windows**: 支持 Windows 7/8/10/11 (x64)\n'
-  printf -- '- 🍎 **macOS**: 支持 macOS 10.14+ (Intel & Apple Silicon)\n'
-  printf -- '- 🐧 **Linux**: 支持主流 Linux 发行版 (x64)\n\n'
+  printf -- '- 🪟 **Windows x64**：在 Windows Server 2022 原生环境构建并运行成品自检\n'
+  printf -- '- 🍎 **macOS x64 / arm64**：在 macOS 15 的 Intel 和 Apple Silicon 环境分别构建并自检\n'
+  printf -- '- 🐧 **Linux x64**：在 Ubuntu 22.04 原生环境构建并运行成品自检\n\n'
   printf '### 💾 下载说明\n\n'
   printf -- '- **Windows**: 直接下载 `.exe` 文件运行\n'
   printf -- '- **macOS**: 直接下载可执行文件，通过终端运行\n'

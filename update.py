@@ -30,11 +30,11 @@ def get_latest_release(repo):
     """从 GitHub API 获取最新发布信息。"""
     url = f'https://api.github.com/repos/{repo}/releases/latest'
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=(10, 20))
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        logger.warn(f"获取发布信息时出错: {e}")
+        logger.warning(f"获取发布信息时出错: {e}")
         return None
 
 
@@ -48,7 +48,7 @@ def show_update_prompt(asset_url):
     """显示更新提示弹窗。"""
     import tkinter as tk
     from tkinter import messagebox
-    
+
     root = tk.Tk()
     root.withdraw()  # 隐藏主窗口
 
@@ -67,7 +67,7 @@ def _is_release_version(app_version) -> bool:
         return False
     core = v.lstrip("v")
     parts = core.split(".")
-    return len(parts) >= 2 and all(p.isdigit() for p in parts if p != "")
+    return len(parts) >= 2 and all(p.isdigit() for p in parts)
 
 
 def check_for_updates(app_version, release_build: bool = True):
@@ -82,6 +82,9 @@ def check_for_updates(app_version, release_build: bool = True):
 
     latest_version = release_info['tag_name']
     asset_html_url = release_info['html_url']
+    if not _is_release_version(latest_version):
+        logger.warning("最新发布版本无法自动比较，请访问: %s", asset_html_url)
+        return
 
     if version_greater_than(latest_version, app_version):
         # if 'assets' in release_info and release_info['assets']:
@@ -94,6 +97,9 @@ def check_for_updates(app_version, release_build: bool = True):
         # else:
         #     logger.warn("最新发布中没有找到资源。")
         # 不直接下载文件，使用进入页面查看新版更新信息
-        show_update_prompt(asset_html_url)
+        try:
+            show_update_prompt(asset_html_url)
+        except Exception as error:
+            logger.warning("无法显示更新弹窗 (%s)，请访问: %s", type(error).__name__, asset_html_url)
     else:
         logger.info("当前已是最新版本。")
