@@ -3,6 +3,7 @@ import math
 
 import requests
 from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad as pad_bytes, unpad as unpad_bytes
 
 from MoocMain.log import Logger
 
@@ -37,7 +38,7 @@ def parse_response(response):
         # 如果包含 "code" 且为 200，返回 "data" 或完整 data
         if isinstance(data, dict):
             if "code" in data:
-                if data["code"] == 200:
+                if data["code"] in (200, "200"):
                     return data.get("data", data)  # 优先返回 data["data"]
                 else:
                     logger.error(f"API 请求失败: {data.get('msg', '未知错误')}")
@@ -47,7 +48,7 @@ def parse_response(response):
                 return data
 
         # 其他情况（如字符串、整数等），记录错误日志
-        logger.error(f"API 返回未知格式: {data}")
+        logger.error("API 返回未知格式: %s", type(data).__name__)
         return None
 
     except ValueError:
@@ -82,13 +83,13 @@ def get_mp3_duration(mp3_url: str) -> float:
     :return: MP3 时长（秒）
     """
     response = requests.get(mp3_url, stream=True, timeout=(10, 30))
-    if response.status_code != 200:
+    try:
+        if response.status_code != 200:
+            raise ValueError("无法下载 MP3 文件")
+        # 读取前 100KB 数据；读取失败时也要释放连接。
+        data = response.raw.read(100000)
+    finally:
         response.close()
-        raise Exception("无法下载 MP3 文件")
-
-    # 读取前 100KB 数据
-    data = response.raw.read(100000)
-    response.close()
 
     # MPEG 版本映射表
     mpeg_versions = {
@@ -123,6 +124,10 @@ def get_mp3_duration(mp3_url: str) -> float:
     while i < len(data) - 4:
         # 查找 MP3 帧同步字节（0xFF Ex）
         if data[i] == 0xFF and (data[i + 1] & 0xE0) == 0xE0:
+            # 这里只处理 Layer III；保留值和其他 MPEG 层不能套用 MP3 帧公式。
+            if (data[i + 1] >> 1) & 0x03 != 0b01:
+                i += 1
+                continue
             # 解析 MPEG 版本
             mpeg_version_id = (data[i + 1] >> 3) & 0x03
             mpeg_version = mpeg_versions.get(mpeg_version_id)
@@ -140,7 +145,7 @@ def get_mp3_duration(mp3_url: str) -> float:
 
             # 解析采样率索引
             sample_rate_index = (data[i + 2] >> 2) & 0x03
-            if sample_rate_index >= len(sample_rates[mpeg_version]):
+            if not sample_rates[mpeg_version][sample_rate_index]:
                 i += 1
                 continue
 
@@ -177,13 +182,12 @@ def get_mp3_duration(mp3_url: str) -> float:
 
 def pad(text):
     """PKCS7 填充，使数据长度为 16 的倍数"""
-    padding_size = 16 - len(text) % 16
-    return text + chr(padding_size) * padding_size
+    return pad_bytes(text.encode('utf-8'), AES.block_size).decode('utf-8')
 
 
 def unpad(text):
     """去除 PKCS7 填充"""
-    return text[:-ord(text[-1])]
+    return unpad_bytes(text.encode('utf-8'), AES.block_size).decode('utf-8')
 
 
 def aes_encrypt_ecb(aes_key, plain_text):

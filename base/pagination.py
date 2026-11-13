@@ -12,7 +12,7 @@ def collect_rows(fetch_page, page_size=100):
         if response.get("code") not in (None, 200, "200"):
             raise RuntimeError("{}：{}".format(response.get("code"), response.get("msg") or "获取列表失败"))
         payload = response.get("data") if isinstance(response.get("data"), dict) else response
-        batch = payload.get("rows", payload.get("records", []))
+        batch = payload.get("rows", payload.get("records"))
         if not isinstance(batch, list):
             raise RuntimeError("列表响应格式错误")
         total = payload.get("total", response.get("total"))
@@ -37,6 +37,4 @@ def collect_rows(fetch_page, page_size=100):
             return rows
         if not added:
             raise RuntimeError("分页未前进，无法获取完整列表")
-        if total is None and len(batch) < page_size:
-            return rows
     raise RuntimeError("分页数量超出限制")

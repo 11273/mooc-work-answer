@@ -56,23 +56,24 @@
 git clone https://github.com/11273/mooc-work-answer.git
 cd mooc-work-answer
 
-# 2. 安装依赖
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+# 2. 安装 uv 后，使用锁文件准备 Python 和依赖
+# uv 安装说明：https://docs.astral.sh/uv/getting-started/installation/
+uv sync --locked
 
 # 3. 运行程序
-python StartWork.py
+uv run StartWork.py
 ```
 
 # 3. 运行开发模式（可选）
 
 ```bash
-python StartWork.py -dev
+uv run StartWork.py -dev
 ```
 
 
 ### 🔧 环境要求
 
-- **Python**: 推荐 ≥ 3.10；3.8 / 3.9 保留源码兼容，但只能安装旧版网络依赖，无法获得这些依赖的全部安全修复
+- **Python**: ≥ 3.12.16；项目固定使用已包含安全补丁的 3.12.16，`uv` 会按 `.python-version` 准备环境
 - **操作系统**: Windows / macOS / Linux
 - **网络**: 稳定的互联网连接
 
@@ -130,27 +131,29 @@ python StartWork.py -dev
 ### 🔎 只读兼容性检查
 
 ```bash
-python StartWork.py --check
+uv run StartWork.py --check
 ```
 
 选择“学习管理”后，可检查当前 MOOC 或资源库课程目录、课件类型、时长和页数；该模式不保存学习进度。选择题目导出时仅允许读取已交卷内容。平台旧课件缺少时长时会提示并跳过，不会猜测时长。
 
-回归测试：`python -m unittest discover -s tests -v`。当前菜单提供学习管理和题目导出；旧版讨论、AI 答题和自动交卷没有接入新版入口。
+回归测试：`uv run python -m unittest discover -s tests -v`。当前菜单提供学习管理和题目导出；旧版讨论、AI 答题和自动交卷没有接入新版入口。
 
 ### 📦 构建和成品自检
 
-使用 Python 3.12，在目标操作系统和架构上构建：
+在目标操作系统和架构上使用锁定的 Python 3.12.16 和依赖构建：
 
 ```bash
-python -m pip install -r requirements-build.txt
-python .github/scripts/build_package.py --version verify-local
+uv sync --locked --group build
+uv run --frozen --group build python .github/scripts/build_package.py --version verify-local
 ```
 
 构建脚本将程序输出到 `dist/`，同时生成 SHA-256 校验文件和 `.smoke.json` 自检报告。构建使用临时源码副本注入版本，不包含 `tiku/` 或账号数据。
 
-每个成品都会复制到独立的中文和空格路径运行 `--self-test`，检查程序启动、版本、架构、HTTPS 证书、加密依赖以及 Markdown / Word 导出。自检不登录账号、不访问网络。
+每个成品都会复制到独立的中文和空格路径运行 `--self-test`，检查程序启动、版本、架构、HTTPS 证书、中文加密以及 Markdown / Word 导出。报告记录实际 Python、OpenSSL 和依赖版本。自检不登录账号、不访问网络。
 
-GitHub Actions 分别在 Windows x64、Linux x64、macOS x64 和 macOS arm64 原生环境中构建并运行自检；`codex/**` 分支也会执行验证。只有推送 `v*` 标签才会创建 Release。
+GitHub Actions 分别在 Windows x64、Linux x64、macOS x64 和 macOS arm64 原生环境中构建并运行自检，再下载全部成品核对 SHA-256、平台、架构和 Python 补丁版本；`codex/**` 分支也会执行验证。源码回归覆盖 Python 3.12.16 和 3.13.18。只有推送 `v*` 标签才会创建 Release。
+
+手动准备环境时也可以使用 Python 3.12.16 或更新版本执行 `python -m pip install -r requirements.txt`；构建依赖使用 `requirements-build.txt`。程序遇到旧版 Python 会直接提示升级。
 
 ### 💡 使用技巧
 

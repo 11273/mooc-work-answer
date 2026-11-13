@@ -6,8 +6,12 @@
 # @File : StartWork.py
 # @Software: PyCharm
 
-import re
 import sys
+
+if sys.version_info < (3, 12, 16):
+    raise SystemExit("需要 Python 3.12.16 或更新版本；建议安装 uv 后使用 uv run StartWork.py。")
+
+import re
 import textwrap
 import time
 from time import sleep

@@ -4,6 +4,8 @@ from unittest.mock import ANY, Mock, patch
 import unittest
 
 import requests
+from Crypto.Cipher import AES
+import base64
 
 from AIMoocMain.api import AIMoocApi
 from AIMoocMain.main import AIMoocHandler
@@ -12,13 +14,25 @@ from ZYKMoocMain.main import ZYKMoocHandler
 from base.api_client import BaseAPIClient
 from base.pagination import collect_rows
 from base.resources import ResourceUnavailable, completed_resource_ids, resource_metadata, resource_total
-from base.util import get_mp3_duration, parse_duration
+from base.util import aes_decrypt_ecb, aes_encrypt_ecb, get_mp3_duration, parse_duration
 from NewMoocMain.oauth_login import OAuthLoginHandler
 from StartWork import get_export_courses
 from update import _is_release_version, check_for_updates
 
 
 class PaginationTests(unittest.TestCase):
+    def test_server_capped_pages_without_total_are_read_until_empty(self):
+        pages = []
+        def fetch(page, size):
+            pages.append(page)
+            return {"rows": [{"id": str(page)}] if page < 4 else []}
+        self.assertEqual(len(collect_rows(fetch)), 3)
+        self.assertEqual(pages, [1, 2, 3, 4])
+
+    def test_malformed_list_is_not_reported_as_no_courses(self):
+        with self.assertRaisesRegex(RuntimeError, "列表响应格式"):
+            collect_rows(lambda *args: {"code": 200, "data": {"unexpected": True}})
+
     def test_reads_server_capped_pages_until_total(self):
         pages = []
         def fetch(page, size):
@@ -50,6 +64,13 @@ class PaginationTests(unittest.TestCase):
 
 
 class ClientTests(unittest.TestCase):
+    def test_string_success_code_is_accepted(self):
+        client = BaseAPIClient("https://example.test")
+        response = Mock(status_code=200)
+        response.json.return_value = {"code": "200", "data": {"ok": True}}
+        client.session.request = Mock(return_value=response)
+        self.assertEqual(client.get("/info"), {"ok": True})
+
     def test_timeout_is_set_on_network_requests(self):
         client = BaseAPIClient("https://example.test")
         response = Mock(status_code=200)
@@ -105,6 +126,28 @@ class ClientTests(unittest.TestCase):
 
 
 class ResourceTests(unittest.TestCase):
+    def test_zero_duration_is_unavailable_in_all_platform_formats(self):
+        for duration in (0, "0", "00:00:00", "00:00:00.000"):
+            with self.subTest(duration=duration), self.assertRaises(ResourceUnavailable):
+                resource_total("video", {"duration": duration})
+
+    def test_zero_primary_duration_uses_valid_video_time(self):
+        self.assertEqual(resource_total("video", {"duration": "0", "videoTime": "00:00:30"}), 30)
+
+    def test_mp3_connection_closes_when_stream_read_fails(self):
+        response = Mock(status_code=200)
+        response.raw.read.side_effect = requests.ConnectionError("stream failed")
+        with patch("base.util.requests.get", return_value=response), self.assertRaises(requests.ConnectionError):
+            get_mp3_duration("https://example.test/audio.mp3")
+        response.close.assert_called_once()
+
+    def test_reserved_mp3_sample_rate_and_other_layers_are_skipped(self):
+        for frame in (bytes([255, 227, 140, 0]), bytes([255, 229, 128, 0])):
+            response = Mock(status_code=200, headers={"Content-Length": "100000"})
+            response.raw.read.return_value = frame + bytes(30)
+            with self.subTest(frame=frame), patch("base.util.requests.get", return_value=response):
+                self.assertEqual(get_mp3_duration("https://example.test/audio.mp3"), 0)
+
     def test_duration_formats(self):
         for value, expected in [("01:02:03.5", 3723), ("02:03.5", 123), ("12.5", 12), (12.5, 12)]:
             self.assertEqual(parse_duration(value), expected)
@@ -203,3 +246,21 @@ class ResourceTests(unittest.TestCase):
              patch("update.show_update_prompt") as prompt:
             check_for_updates("v3.3.4")
             prompt.assert_not_called()
+
+
+class EncryptionTests(unittest.TestCase):
+    key = b"0123456789abcdef"
+
+    def test_unicode_and_boundary_length_payloads_round_trip(self):
+        for text in ("", "a" * 15, "a" * 16, "a" * 17, "中文课件😀", '{"课程":"建筑结构"}'):
+            with self.subTest(text=text):
+                self.assertEqual(aes_decrypt_ecb(self.key, aes_encrypt_ecb(self.key, text)), text)
+
+    def test_existing_ascii_ciphertext_remains_compatible(self):
+        self.assertEqual(aes_encrypt_ecb(self.key, '{"probe":"packaging"}'),
+                         "YbX6g4Loki1wdZlmwwSm4U1Y27sI7ggwGLl95rLxeOI=")
+
+    def test_invalid_padding_is_rejected(self):
+        ciphertext = AES.new(self.key, AES.MODE_ECB).encrypt(b"A" * 16)
+        with self.assertRaises(ValueError):
+            aes_decrypt_ecb(self.key, base64.b64encode(ciphertext).decode("ascii"))

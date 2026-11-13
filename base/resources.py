@@ -29,10 +29,16 @@ def resource_metadata(value):
 
 def resource_total(file_type, metadata):
     file_type = (file_type or "").lower()
-    duration = metadata.get("duration") or metadata.get("videoTime")
     if file_type in VIDEO_TYPES | AUDIO_TYPES:
-        if duration not in (None, ""):
-            return max(1, parse_duration(duration))
+        for duration in (metadata.get("duration"), metadata.get("videoTime")):
+            if duration in (None, ""):
+                continue
+            try:
+                seconds = parse_duration(duration)
+            except (TypeError, ValueError):
+                continue
+            if seconds > 0:
+                return seconds
         if file_type in ("mp3", "audio"):
             url = metadata.get("ossOriUrl") or metadata.get("fileUrl")
             if url:

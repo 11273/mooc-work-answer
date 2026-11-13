@@ -1,5 +1,4 @@
 """离线检查打包后实际使用的依赖和导出能力，不访问账号或网络。"""
-import json
 import platform
 from pathlib import Path
 import ssl
@@ -8,6 +7,11 @@ import tempfile
 from zipfile import ZipFile
 
 import certifi
+import Crypto
+import docx
+import lxml
+import requests
+import urllib3
 from docx import Document
 from lxml import etree
 
@@ -17,7 +21,7 @@ from base.util import aes_decrypt_ecb, aes_encrypt_ecb
 
 def run_package_check(version):
     key = b"0123456789abcdef"
-    payload = '{"probe":"packaging"}'
+    payload = '{"probe":"中文课件😀"}'
     if aes_decrypt_ecb(key, aes_encrypt_ecb(key, payload)) != payload:
         raise RuntimeError("AES dependency check failed")
     if etree.fromstring("<probe>中文</probe>".encode("utf-8")).text != "中文":
@@ -58,5 +62,11 @@ def run_package_check(version):
     return {
         "ok": True, "version": version, "frozen": bool(getattr(sys, "frozen", False)),
         "platform": sys.platform, "machine": platform.machine(), "python": platform.python_version(),
+        "openssl": ssl.OPENSSL_VERSION,
+        "dependencies": {
+            "requests": requests.__version__, "urllib3": urllib3.__version__,
+            "certifi": certifi.__version__, "pycryptodome": Crypto.__version__,
+            "python-docx": docx.__version__, "lxml": lxml.__version__,
+        },
         "checks": ["aes", "lxml", "https_certificates", "unicode_paths", "markdown", "word", "answers", "image_links"],
     }
