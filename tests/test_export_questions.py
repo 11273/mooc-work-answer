@@ -157,14 +157,14 @@ class ExportFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             result = self.export(folder, client, include_my_answer=True)
             self.assertTrue(result.success)
-            text = next(Path(folder).rglob("*.md")).read_text()
+            text = next(Path(folder).rglob("*.md")).read_text(encoding="utf-8")
             self.assertIn("**我的答案：** B", text)
             self.assertNotIn("**我的答案：** A", text)
 
     def test_no_student_answer_in_default_documents(self):
         with tempfile.TemporaryDirectory() as folder:
             self.export(folder)
-            self.assertNotIn("我的答案", next(Path(folder).rglob("*.md")).read_text())
+            self.assertNotIn("我的答案", next(Path(folder).rglob("*.md")).read_text(encoding="utf-8"))
 
     def test_incomplete_submitted_record_does_not_start_an_attempt(self):
         client = ExportClient()
